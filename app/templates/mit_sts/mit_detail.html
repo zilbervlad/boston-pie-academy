@@ -13,6 +13,7 @@
     </div>
 
     <div class="track-actions">
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.export_tasks_pdf', mit_id=mit.id) }}">Download PDF</a>
         {% if can_edit %}
         <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">+ Assign Task</a>
         <a class="btn btn-secondary" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit Profile</a>

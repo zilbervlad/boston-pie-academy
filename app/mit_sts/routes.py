@@ -1,8 +1,22 @@
 from collections import defaultdict
 from datetime import datetime, date
+from io import BytesIO
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from app.extensions import db
 from app.models import (
@@ -200,6 +214,91 @@ def refresh_mit_status(mit):
     else:
         if mit.sts_status in ["ready", "promoted"]:
             mit.sts_status = "on_track"
+
+
+def format_pdf_date(value):
+    if not value:
+        return "-"
+    return value.strftime("%Y-%m-%d")
+
+
+def format_pdf_datetime(value):
+    if not value:
+        return "-"
+    return value.strftime("%Y-%m-%d %I:%M %p")
+
+
+def pdf_task_status_label(task):
+    return task_display_status(task).replace("_", " ").title()
+
+
+def build_pdf_task_table(tasks, body_style):
+    rows = [[
+        Paragraph("<b>Task</b>", body_style),
+        Paragraph("<b>Priority</b>", body_style),
+        Paragraph("<b>Status</b>", body_style),
+        Paragraph("<b>Due Date</b>", body_style),
+    ]]
+
+    if not tasks:
+        rows.append([
+            Paragraph("No tasks in this section.", body_style),
+            "",
+            "",
+            "",
+        ])
+    else:
+        for task in tasks:
+            task_title = f"{task.title}"
+            extra_lines = []
+
+            if task.description:
+                extra_lines.append(f"<font size='8' color='#555555'>{task.description}</font>")
+
+            if task.notes:
+                safe_notes = task.notes.replace("\n", "<br/>")
+                extra_lines.append(f"<font size='8' color='#444444'><b>Notes:</b> {safe_notes}</font>")
+
+            if task.assigned_by_user:
+                extra_lines.append(
+                    f"<font size='8' color='#666666'>Assigned by: {task.assigned_by_user.name}</font>"
+                )
+
+            if task.completed_at:
+                extra_lines.append(
+                    f"<font size='8' color='#666666'>Completed: {format_pdf_datetime(task.completed_at)}</font>"
+                )
+
+            task_html = "<br/>".join([task_title] + extra_lines)
+
+            rows.append([
+                Paragraph(task_html, body_style),
+                Paragraph((task.priority or "-").title(), body_style),
+                Paragraph(pdf_task_status_label(task), body_style),
+                Paragraph(format_pdf_date(task.due_date), body_style),
+            ])
+
+    table = Table(
+        rows,
+        colWidths=[3.85 * inch, 0.95 * inch, 1.1 * inch, 1.1 * inch],
+        repeatRows=1,
+    )
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("LEADING", (0, 0), (-1, -1), 12),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d1d5db")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    return table
 
 
 @mit_sts_bp.route("/my-mit")
@@ -635,6 +734,158 @@ def view_mit(mit_id):
         promotions=promotions,
         user=current_user,
         can_edit=can_edit_mit(),
+    )
+
+
+@mit_sts_bp.route("/mits/<int:mit_id>/tasks/pdf")
+@login_required
+def export_tasks_pdf(mit_id):
+    mit = MITProfile.query.get_or_404(mit_id)
+
+    if not can_view_mit(mit):
+        flash("You do not have permission to export that MIT task sheet.", "danger")
+        return redirect(url_for("academy.dashboard"))
+
+    tasks = MITTask.query.filter_by(mit_profile_id=mit.id).order_by(
+        MITTask.due_date.asc(),
+        MITTask.created_at.desc()
+    ).all()
+
+    active_tasks = []
+    completed_tasks = []
+
+    for task in tasks:
+        display_status = task_display_status(task)
+        if display_status in ["verified", "cancelled"]:
+            completed_tasks.append(task)
+        else:
+            active_tasks.append(task)
+
+    task_counts = get_mit_task_counts(mit.id)
+    overall_progress = calculate_overall_progress(mit.id)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=0.55 * inch,
+        leftMargin=0.55 * inch,
+        topMargin=0.55 * inch,
+        bottomMargin=0.55 * inch,
+        title=f"{mit.mit_user.name} - MIT Task Sheet",
+        author="Boston Pie Academy",
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "MitPdfTitle",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor("#111827"),
+        spaceAfter=6,
+    )
+    section_style = ParagraphStyle(
+        "MitPdfSection",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        leading=15,
+        textColor=colors.HexColor("#1f2937"),
+        spaceBefore=10,
+        spaceAfter=6,
+    )
+    body_style = ParagraphStyle(
+        "MitPdfBody",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=9,
+        leading=12,
+        alignment=TA_LEFT,
+        textColor=colors.HexColor("#111827"),
+    )
+    subtle_style = ParagraphStyle(
+        "MitPdfSubtle",
+        parent=body_style,
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#6b7280"),
+    )
+
+    story = []
+
+    story.append(Paragraph("MIT STS Task Sheet", title_style))
+    story.append(Paragraph(
+        f"<b>{mit.mit_user.name}</b> - Store {mit.store_number or 'Not set'} - "
+        f"Level {mit.current_level} - Target {str(mit.target_level).upper()}",
+        body_style,
+    ))
+    story.append(Paragraph(
+        f"Generated on {datetime.now().strftime('%Y-%m-%d %I:%M %p')} by "
+        f"{current_user.name}",
+        subtle_style,
+    ))
+    story.append(Spacer(1, 0.16 * inch))
+
+    summary_table = Table([
+        ["Coach", mit.coach_user.name if mit.coach_user else "Not set", "Status", mit.sts_status.replace("_", " ").title()],
+        ["Start Date", format_pdf_date(mit.start_date), "Next Review", format_pdf_date(mit.next_review_date)],
+        ["Overall Progress", f"{overall_progress}%", "Open Tasks", str(task_counts["open"])],
+        ["Overdue Tasks", str(task_counts["overdue"]), "Submitted Tasks", str(task_counts["submitted"])],
+    ], colWidths=[1.2 * inch, 2.05 * inch, 1.2 * inch, 2.45 * inch])
+
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f9fafb")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("LEADING", (0, 0), (-1, -1), 12),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(summary_table)
+    story.append(Spacer(1, 0.18 * inch))
+
+    story.append(Paragraph(f"Active Tasks ({len(active_tasks)})", section_style))
+    story.append(build_pdf_task_table(active_tasks, body_style))
+    story.append(Spacer(1, 0.18 * inch))
+
+    story.append(Paragraph(f"Completed / Closed Tasks ({len(completed_tasks)})", section_style))
+    story.append(build_pdf_task_table(completed_tasks, body_style))
+    story.append(Spacer(1, 0.22 * inch))
+
+    story.append(Paragraph("Manager / Coach Sign-Off", section_style))
+    signoff_table = Table([
+        ["Reviewed By:", "__________________________________", "Date:", "________________"],
+        ["Comments:", "__________________________________", "", ""],
+        ["", "__________________________________", "", ""],
+    ], colWidths=[1.05 * inch, 3.15 * inch, 0.65 * inch, 1.35 * inch])
+
+    signoff_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.append(signoff_table)
+
+    doc.build(story)
+    buffer.seek(0)
+
+    filename = f"mit_{mit.mit_user.name.strip().replace(' ', '_').lower()}_tasks.pdf"
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/pdf",
     )
 
 
