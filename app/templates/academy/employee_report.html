@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}{{ employee.name }} Report | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">EMPLOYEE REPORT</p>
+        <h2>{{ employee.name }}</h2>
+        <p class="subtle">
+            {{ employee.username }} • {{ employee.role|replace('_', ' ')|title }} • Store {{ employee.store_number or 'Not set' }}
+        </p>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="card stat-card">
+        <span class="stat-label">Assigned Tracks</span>
+        <h3>{{ tracks|length }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Completed Tracks</span>
+        <h3>{{ completed_tracks }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Completed Lessons</span>
+        <h3>{{ completed_lessons }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">In Progress</span>
+        <h3>{{ in_progress_lessons }}</h3>
+    </div>
+</div>
+
+{% if tracks %}
+    {% for track in tracks %}
+    <div class="card" style="margin-bottom: 24px;">
+        <div class="card-header">
+            <h3>
+                {{ track.title }}
+                {% if track_complete_map.get(track.id) %}
+                <span class="completion-pill">Complete</span>
+                {% endif %}
+            </h3>
+            <p>{{ track_progress.get(track.id, 0) }}% complete</p>
+        </div>
+
+        <div class="progress-bar" style="margin-bottom: 18px;">
+            <div class="progress-fill" style="width: {{ track_progress.get(track.id, 0) }}%;"></div>
+        </div>
+
+        <div class="track-list">
+            {% for module in track.modules %}
+            <div class="track-row">
+                <div style="width: 100%;">
+                    <div class="track-title">
+                        {{ module.title }}
+                        {% if module_complete_map.get(module.id) %}
+                        <span class="completion-pill">Complete</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="track-meta">
+                        <span>{{ module_progress.get(module.id, 0) }}% complete</span>
+                        <span>•</span>
+                        <span>{{ module.lessons|length }} lessons</span>
+                    </div>
+
+                    <div class="progress-bar" style="margin-bottom: 14px;">
+                        <div class="progress-fill" style="width: {{ module_progress.get(module.id, 0) }}%;"></div>
+                    </div>
+
+                    <div class="lesson-report-list">
+                        {% for lesson in module.lessons %}
+                        <div class="lesson-report-row">
+                            <div>
+                                <strong>{{ lesson.title }}</strong>
+                                <div class="track-meta">
+                                    <span>{{ lesson.lesson_type|title }}</span>
+                                    <span>•</span>
+                                    <span>{{ lesson.estimated_minutes }} min</span>
+
+                                    {% if lesson_quiz_map.get(lesson.id, {}).get("requires_quiz") %}
+                                    <span>•</span>
+                                    <span>Quiz Required</span>
+                                    {% endif %}
+                                </div>
+
+                                {% set quiz_info = lesson_quiz_map.get(lesson.id) %}
+                                {% if quiz_info and quiz_info.get("has_quiz") and quiz_info.get("latest_attempt") %}
+                                <div class="track-meta" style="margin-top: 6px;">
+                                    <span>Latest Quiz: {{ quiz_info.get("latest_attempt").score }}%</span>
+                                    <span>•</span>
+                                    <span>
+                                        {% if quiz_info.get("passed") %}
+                                            Passed
+                                        {% else %}
+                                            Not Passed
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                {% elif quiz_info and quiz_info.get("requires_quiz") %}
+                                <div class="track-meta" style="margin-top: 6px;">
+                                    <span>Quiz not taken yet</span>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <div>
+                                {% set status = lesson_status_map.get(lesson.id, 'not_started') %}
+                                {% if status == 'completed' %}
+                                    <span class="completion-pill">Completed</span>
+                                {% elif status == 'in_progress' %}
+                                    <span class="status-pill status-in-progress">In Progress</span>
+                                {% else %}
+                                    <span class="status-pill status-not-started">Not Started</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <h3>No assigned tracks</h3>
+        <p>This user has not been assigned any training yet.</p>
+    </div>
+</div>
+{% endif %}
+
+<div class="page-footer-actions">
+    <a class="btn btn-secondary" href="{{ url_for('academy.manage_users') }}">Back to Users</a>
+</div>
+{% endblock %}

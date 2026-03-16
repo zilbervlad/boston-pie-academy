@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MIT TASKS</p>
+        <h2>{{ page_title }}</h2>
+        <p class="subtle">Assign multiple STS tasks and custom tasks for {{ mit.mit_user.name }}.</p>
+    </div>
+</div>
+
+<div class="card form-card">
+    <form method="POST" class="form-grid">
+        <div class="form-group">
+            <label>Shared Due Date</label>
+            <input type="date" name="due_date">
+        </div>
+
+        <div class="form-group">
+            <label>Shared Priority</label>
+            <select name="priority">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+            </select>
+        </div>
+
+        <div class="form-group form-group-full">
+            <label>Shared Notes</label>
+            <textarea name="notes" rows="3" placeholder="Meeting notes, expectations, or follow-up instructions for all selected tasks..."></textarea>
+        </div>
+
+        <div class="form-group form-group-full">
+            <label>Select STS Tasks</label>
+
+            <div class="multi-level-task-board">
+                {% for level_number, items in grouped_template_items.items() %}
+                <div class="task-level-card">
+                    <div class="task-level-header">
+                        <h3>Level {{ level_number }}</h3>
+                        <p>{{ items|length }} item{{ '' if items|length == 1 else 's' }}</p>
+                    </div>
+
+                    <div class="task-checkbox-list">
+                        {% for item in items %}
+                        <label class="task-checkbox-row">
+                            <input type="checkbox" name="selected_template_item_ids" value="{{ item.id }}">
+                            <span class="task-checkbox-text">{{ item.item_name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group form-group-full">
+            <label>Custom Tasks</label>
+            <div id="custom-task-list" class="custom-task-list">
+                <input type="text" name="custom_task_titles" placeholder="Custom task 1">
+                <input type="text" name="custom_task_titles" placeholder="Custom task 2">
+                <input type="text" name="custom_task_titles" placeholder="Custom task 3">
+            </div>
+            <button type="button" class="btn btn-secondary" onclick="addCustomTaskField()">+ Add Another Custom Task</button>
+        </div>
+
+        <div class="form-actions form-group-full">
+            <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+            <a href="{{ url_for('mit_sts.view_tasks', mit_id=mit.id) }}" class="btn btn-secondary">Back</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function addCustomTaskField() {
+    const container = document.getElementById("custom-task-list");
+    const input = document.createElement("input");
+    input.type = "text";
+    input.name = "custom_task_titles";
+    input.placeholder = "Another custom task";
+    container.appendChild(input);
+}
+</script>
+{% endblock %}

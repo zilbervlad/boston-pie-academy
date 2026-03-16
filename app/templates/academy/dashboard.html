@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">ACADEMY COMMAND CENTER</p>
+        <h2>Welcome, {{ user.name }}</h2>
+        <p class="subtle">Quick overview of your training operation.</p>
+    </div>
+
+    <div class="track-actions">
+        <a class="btn btn-primary" href="{{ url_for('academy.new_track') }}">+ New Track</a>
+        <a class="btn btn-secondary" href="{{ url_for('academy.new_user') }}">+ New User</a>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="card stat-card">
+        <span class="stat-label">Training Tracks</span>
+        <h3>{{ tracks|length }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Employees</span>
+        <h3>{{ employee_count }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Assignments</span>
+        <h3>{{ assignment_count }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Completed Lessons</span>
+        <h3>{{ completed_lessons }}</h3>
+    </div>
+</div>
+
+<div class="dashboard-grid-2">
+    <div class="card">
+        <div class="card-header">
+            <h3>Quick Actions</h3>
+            <p>Jump straight into the main admin tasks.</p>
+        </div>
+
+        <div class="quick-actions-grid">
+            <a class="quick-action-card" href="{{ url_for('academy.new_track') }}">
+                <strong>Create Track</strong>
+                <span>Build a new training track</span>
+            </a>
+
+            <a class="quick-action-card" href="{{ url_for('academy.new_user') }}">
+                <strong>Create User</strong>
+                <span>Add employee or leadership accounts</span>
+            </a>
+
+            <a class="quick-action-card" href="{{ url_for('academy.manage_assignments') }}">
+                <strong>Assign Training</strong>
+                <span>Attach tracks to users</span>
+            </a>
+
+            <a class="quick-action-card" href="{{ url_for('academy.manage_users') }}">
+                <strong>View Reports</strong>
+                <span>Open employee progress reports</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>At a Glance</h3>
+            <p>Fast snapshot of activity.</p>
+        </div>
+
+        <div class="glance-list">
+            <div class="glance-row">
+                <span>Tracks in system</span>
+                <strong>{{ tracks|length }}</strong>
+            </div>
+            <div class="glance-row">
+                <span>Employee accounts</span>
+                <strong>{{ employee_count }}</strong>
+            </div>
+            <div class="glance-row">
+                <span>Track assignments</span>
+                <strong>{{ assignment_count }}</strong>
+            </div>
+            <div class="glance-row">
+                <span>Your completed lessons</span>
+                <strong>{{ completed_lessons }}</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Recently Managed Tracks</h3>
+        <p>A quick shortcut list. Full management lives in the Tracks page.</p>
+    </div>
+
+    {% if tracks %}
+        <div class="track-list">
+            {% for track in tracks[:5] %}
+            <div class="track-row">
+                <div>
+                    <div class="track-title">{{ track.title }}</div>
+                    <div class="track-meta">
+                        <span>{{ track.audience_role or 'No audience role' }}</span>
+                        <span>•</span>
+                        <span>{{ track.level_label or 'No level label' }}</span>
+                    </div>
+                </div>
+
+                <div class="track-actions">
+                    <a class="btn btn-secondary" href="{{ url_for('academy.view_track', track_id=track.id) }}">Open</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="page-footer-actions">
+            <a class="btn btn-secondary" href="{{ url_for('academy.tracks_library') }}">Go to Full Tracks Library</a>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No training tracks yet</h3>
+            <p>Create your first track to start building Boston Pie Academy.</p>
+            <a class="btn btn-primary" href="{{ url_for('academy.new_track') }}">Create First Track</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

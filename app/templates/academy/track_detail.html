@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}{{ track.title }} | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">TRAINING TRACK</p>
+        <h2>
+            {{ track.title }}
+            {% if track_complete %}
+            <span class="completion-pill">Complete</span>
+            {% endif %}
+        </h2>
+        <p class="subtle">{{ track.description or "No description yet." }}</p>
+    </div>
+
+    {% if user.role in ['admin','training_director'] %}
+    <a class="btn btn-primary" href="{{ url_for('academy.new_module', track_id=track.id) }}">+ Add Module</a>
+    {% endif %}
+</div>
+
+<div class="stats-grid">
+    <div class="card stat-card">
+        <span class="stat-label">Audience</span>
+        <h3>{{ track.audience_role or "All" }}</h3>
+    </div>
+
+    <div class="card stat-card">
+        <span class="stat-label">Level</span>
+        <h3>{{ track.level_label or "General" }}</h3>
+    </div>
+
+    <div class="card stat-card">
+        <span class="stat-label">Track Progress</span>
+        <h3>{{ track_progress }}%</h3>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Modules</h3>
+        <p>Modules organize lessons within this training track.</p>
+    </div>
+
+    {% if modules %}
+    <div class="track-list">
+        {% for module in modules %}
+        <div class="track-row">
+            <div>
+                <div class="track-title">
+                    {{ module.title }}
+                    {% if module_complete_map.get(module.id) %}
+                    <span class="completion-pill">Complete</span>
+                    {% endif %}
+                </div>
+
+                <div class="track-meta">
+                    <span>{{ module.description if module.description else "No description yet" }}</span>
+                    <span>•</span>
+                    <span>{{ module_counts.get(module.id, 0) }} lessons</span>
+                    <span>•</span>
+                    <span>{{ module_progress.get(module.id, 0) }}% complete</span>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ module_progress.get(module.id, 0) }}%;"></div>
+                </div>
+            </div>
+
+            <div class="track-actions">
+                <a class="btn btn-secondary" href="{{ url_for('academy.view_module', module_id=module.id) }}">Open</a>
+
+                {% if user.role in ['admin','training_director'] %}
+                <a class="btn btn-secondary" href="{{ url_for('academy.edit_module', module_id=module.id) }}">Edit</a>
+                <a class="btn btn-danger" href="{{ url_for('academy.delete_module', module_id=module.id) }}" onclick="return confirm('Delete this module?')">Delete</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No modules yet</h3>
+        <p>Create your first module to begin building this training track.</p>
+
+        {% if user.role in ['admin','training_director'] %}
+        <a class="btn btn-primary" href="{{ url_for('academy.new_module', track_id=track.id) }}">Create Module</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="page-footer-actions">
+    {% if user.role == 'employee' %}
+    <a class="btn btn-secondary" href="{{ url_for('academy.my_training') }}">Back to My Training</a>
+    {% else %}
+    <a class="btn btn-secondary" href="{{ url_for('academy.dashboard') }}">Back to Dashboard</a>
+    {% endif %}
+</div>
+{% endblock %}

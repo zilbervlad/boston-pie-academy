@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}MIT Tasks{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MIT TASKS</p>
+        <h2>{{ mit.mit_user.name }}</h2>
+        <p class="subtle">Assigned tasks and follow-up work.</p>
+    </div>
+
+    <div class="track-actions">
+        {% if can_edit %}
+        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">+ Assign Task</a>
+        {% endif %}
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Back to MIT</a>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <h3>Open / Active Tasks</h3>
+        <p>{{ active_tasks|length }} active task{{ '' if active_tasks|length == 1 else 's' }}</p>
+    </div>
+
+    {% if active_tasks %}
+    <div class="track-list">
+        {% for task, display_status in active_tasks %}
+        <div class="track-row">
+            <div style="width:100%;">
+                <div class="track-title">{{ task.title }}</div>
+
+                <div class="track-meta">
+                    <span>Priority: {{ task.priority|title }}</span>
+                    <span>•</span>
+                    <span>Status: {{ display_status|replace('_', ' ')|title }}</span>
+                    <span>•</span>
+                    <span>Assigned by {{ task.assigned_by_user.name }}</span>
+                    {% if task.due_date %}
+                    <span>•</span>
+                    <span>Due {{ task.due_date.strftime('%Y-%m-%d') }}</span>
+                    {% endif %}
+                </div>
+
+                {% if task.task_template_item %}
+                <div class="track-meta" style="margin-top: 6px;">
+                    <span>Related STS Item: {{ task.task_template_item.item_name }}</span>
+                </div>
+                {% endif %}
+
+                {% if task.description %}
+                <div class="lesson-summary">{{ task.description }}</div>
+                {% endif %}
+
+                {% if task.notes %}
+                <div class="track-meta" style="margin-top: 6px;">
+                    <span>Notes: {{ task.notes }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if can_edit %}
+            <div class="track-actions" style="flex-wrap: wrap;">
+                <form method="POST" action="{{ url_for('mit_sts.update_task_status', task_id=task.id) }}">
+                    <input type="hidden" name="status" value="open">
+                    <button type="submit" class="btn btn-secondary">Open</button>
+                </form>
+
+                <form method="POST" action="{{ url_for('mit_sts.update_task_status', task_id=task.id) }}">
+                    <input type="hidden" name="status" value="in_progress">
+                    <button type="submit" class="btn btn-secondary">In Progress</button>
+                </form>
+
+                {% if task.status == 'submitted' %}
+                <form method="POST" action="{{ url_for('mit_sts.update_task_status', task_id=task.id) }}">
+                    <input type="hidden" name="status" value="verified">
+                    <button type="submit" class="btn btn-primary">Verify Complete</button>
+                </form>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('mit_sts.update_task_status', task_id=task.id) }}">
+                    <input type="hidden" name="status" value="cancelled">
+                    <button type="submit" class="btn btn-danger">Cancel</button>
+                </form>
+            </div>
+            {% elif user.id == mit.user_id and task.status in ['open', 'in_progress'] %}
+            <div class="track-actions">
+                <form method="POST" action="{{ url_for('mit_sts.submit_task_for_review', task_id=task.id) }}">
+                    <button type="submit" class="btn btn-primary">Submit for Review</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No active tasks</h3>
+        <p>No active MIT tasks are assigned right now.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Completed / Closed Tasks</h3>
+        <p>{{ completed_tasks|length }} closed task{{ '' if completed_tasks|length == 1 else 's' }}</p>
+    </div>
+
+    {% if completed_tasks %}
+    <div class="track-list">
+        {% for task, display_status in completed_tasks %}
+        <div class="track-row">
+            <div style="width:100%;">
+                <div class="track-title">{{ task.title }}</div>
+                <div class="track-meta">
+                    <span>Status: {{ display_status|replace('_', ' ')|title }}</span>
+                    {% if task.completed_at %}
+                    <span>•</span>
+                    <span>Completed {{ task.completed_at.strftime('%Y-%m-%d') }}</span>
+                    {% endif %}
+                    {% if task.due_date %}
+                    <span>•</span>
+                    <span>Due {{ task.due_date.strftime('%Y-%m-%d') }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No completed tasks yet</h3>
+        <p>Finished MIT tasks will show here.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

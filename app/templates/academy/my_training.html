@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}My Training | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MY TRAINING</p>
+        <h2>Welcome, {{ user.name }}</h2>
+        <p class="subtle">These are the training tracks assigned to you.</p>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="card stat-card">
+        <span class="stat-label">Assigned Tracks</span>
+        <h3>{{ tracks|length }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Completed Tracks</span>
+        <h3>{{ completed_tracks }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Completed Lessons</span>
+        <h3>{{ completed_lessons }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">In Progress</span>
+        <h3>{{ in_progress_lessons }}</h3>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Assigned Training</h3>
+        <p>Your required tracks are listed below.</p>
+    </div>
+
+    {% if tracks %}
+        <div class="track-list">
+            {% for track in tracks %}
+            <div class="track-row">
+                <div>
+                    <div class="track-title">
+                        {{ track.title }}
+                        {% if track_complete_map.get(track.id) %}
+                        <span class="completion-pill">Complete</span>
+                        {% endif %}
+                    </div>
+                    <div class="track-meta">
+                        <span>{{ track.level_label or 'No level label' }}</span>
+                        <span>•</span>
+                        <span>{{ track_progress.get(track.id, 0) }}% complete</span>
+                    </div>
+
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ track_progress.get(track.id, 0) }}%;"></div>
+                    </div>
+                </div>
+
+                <div class="track-actions">
+                    <a class="btn btn-primary" href="{{ url_for('academy.view_track', track_id=track.id) }}">Open</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No training assigned yet</h3>
+            <p>Your manager or training director has not assigned any tracks yet.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

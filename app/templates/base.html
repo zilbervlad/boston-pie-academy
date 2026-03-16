@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Boston Pie Academy{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div>
+                <div class="brand">
+                    <div class="brand-mark">BPA</div>
+                    <div>
+                        <h1>Boston Pie Academy</h1>
+                        <p>Training Platform</p>
+                    </div>
+                </div>
+
+                {% if current_user.is_authenticated %}
+                <nav class="nav">
+                    {% if current_user.role == 'tm' %}
+                    <a href="{{ url_for('academy.my_training') }}">My Training</a>
+
+                    {% elif current_user.role == 'mit' %}
+                    <a href="{{ url_for('mit_sts.my_mit') }}">My MIT STS</a>
+
+                    {% elif current_user.role == 'coach' %}
+                    <a href="{{ url_for('academy.dashboard') }}">Dashboard</a>
+                    <a href="{{ url_for('academy.manage_users') }}">Users</a>
+                    <a href="{{ url_for('mit_sts.dashboard') }}">MIT STS</a>
+                    <a href="{{ url_for('mit_sts.promotion_queue') }}">Promotion Queue</a>
+
+                    {% else %}
+                    <a href="{{ url_for('academy.dashboard') }}">Dashboard</a>
+                    <a href="{{ url_for('academy.tracks_library') }}">Tracks</a>
+                    <a href="{{ url_for('academy.manage_users') }}">Users</a>
+                    <a href="{{ url_for('academy.manage_assignments') }}">Assignments</a>
+                    <a href="{{ url_for('mit_sts.dashboard') }}">MIT STS</a>
+                    <a href="{{ url_for('mit_sts.promotion_queue') }}">Promotion Queue</a>
+                    {% endif %}
+                </nav>
+                {% endif %}
+            </div>
+
+            {% if current_user.is_authenticated %}
+            <div class="sidebar-footer">
+                <div class="user-chip">
+                    <strong>{{ current_user.name }}</strong>
+                    <span>{{ current_user.role.replace('_', ' ').title() }}</span>
+                </div>
+                <a class="logout-link" href="{{ url_for('auth.logout') }}">Logout</a>
+            </div>
+            {% endif %}
+        </aside>
+
+        <main class="main-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                <div class="flash-stack">
+                  {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

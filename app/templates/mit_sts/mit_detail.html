@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}MIT Profile{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MIT STS</p>
+        <h2>{{ mit.mit_user.name }}</h2>
+        <p class="subtle">
+            Store {{ mit.store_number or 'Not set' }} • Current Level {{ mit.current_level }} • Target {{ mit.target_level|upper }}
+        </p>
+    </div>
+
+    <div class="track-actions">
+        {% if can_edit %}
+        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">+ Assign Task</a>
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit Profile</a>
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.list_mits') }}">Back to MITs</a>
+        {% else %}
+        <a class="btn btn-secondary" href="{{ url_for('academy.dashboard') }}">Back</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="card stat-card">
+        <span class="stat-label">Overall Progress</span>
+        <h3>{{ overall_progress }}%</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Current Level</span>
+        <h3>{{ mit.current_level }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">What’s Left</span>
+        <h3>{{ incomplete_count }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Status</span>
+        <h3>{{ mit.sts_status|replace('_', ' ')|title }}</h3>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="card stat-card">
+        <span class="stat-label">Open Tasks</span>
+        <h3>{{ open_tasks_count }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Overdue Tasks</span>
+        <h3>{{ overdue_tasks_count }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Submitted Tasks</span>
+        <h3>{{ submitted_tasks_count }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Next Review</span>
+        <h3>{{ mit.next_review_date.strftime('%Y-%m-%d') if mit.next_review_date else 'Not Set' }}</h3>
+    </div>
+</div>
+
+<div class="dashboard-grid-2">
+    <div class="card">
+        <div class="card-header">
+            <h3>MIT Profile</h3>
+            <p>Core profile information.</p>
+        </div>
+
+        <div class="glance-list">
+            <div class="glance-row">
+                <span>Name</span>
+                <strong>{{ mit.mit_user.name }}</strong>
+            </div>
+            <div class="glance-row">
+                <span>Username</span>
+                <strong>{{ mit.mit_user.username }}</strong>
+            </div>
+            <div class="glance-row">
+                <span>Store</span>
+                <strong>{{ mit.store_number or 'Not set' }}</strong>
+            </div>
+            <div class="glance-row">
+                <span>Coach</span>
+                <strong>{{ mit.coach_user.name if mit.coach_user else 'Not set' }}</strong>
+            </div>
+            <div class="glance-row">
+                <span>Start Date</span>
+                <strong>{{ mit.start_date.strftime('%Y-%m-%d') if mit.start_date else 'Not set' }}</strong>
+            </div>
+            <div class="glance-row">
+                <span>Next Review</span>
+                <strong>{{ mit.next_review_date.strftime('%Y-%m-%d') if mit.next_review_date else 'Not set' }}</strong>
+            </div>
+        </div>
+
+        <div class="page-footer-actions" style="margin-top: 18px;">
+            <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_tasks', mit_id=mit.id) }}">
+                {% if can_edit %}Open Tasks{% else %}My Tasks{% endif %}
+            </a>
+            {% if can_edit and mit.sts_status == 'ready' %}
+            <a class="btn btn-primary" href="{{ url_for('mit_sts.promotion_queue') }}">Promotion Queue</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Level Progress</h3>
+            <p>Each level has its own checklist board.</p>
+        </div>
+
+        <div class="track-list">
+            <div class="track-row">
+                <div>
+                    <div class="track-title">Level 1</div>
+                    <div class="track-meta">
+                        <span>{{ level_1_progress }}% complete</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ level_1_progress }}%;"></div>
+                    </div>
+                </div>
+                <div class="track-actions">
+                    <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_level', mit_id=mit.id, level_number=1) }}">Open</a>
+                </div>
+            </div>
+
+            <div class="track-row">
+                <div>
+                    <div class="track-title">Level 2</div>
+                    <div class="track-meta">
+                        <span>{{ level_2_progress }}% complete</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ level_2_progress }}%;"></div>
+                    </div>
+                </div>
+                <div class="track-actions">
+                    <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_level', mit_id=mit.id, level_number=2) }}">Open</a>
+                </div>
+            </div>
+
+            <div class="track-row">
+                <div>
+                    <div class="track-title">Level 3</div>
+                    <div class="track-meta">
+                        <span>{{ level_3_progress }}% complete</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ level_3_progress }}%;"></div>
+                    </div>
+                </div>
+                <div class="track-actions">
+                    <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_level', mit_id=mit.id, level_number=3) }}">Open</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if promotions %}
+<div class="card">
+    <div class="card-header">
+        <h3>Promotion History</h3>
+        <p>{{ promotions|length }} promotion{{ '' if promotions|length == 1 else 's' }}</p>
+    </div>
+
+    <div class="track-list">
+        {% for promo in promotions %}
+        <div class="track-row">
+            <div>
+                <div class="track-title">Level {{ promo.from_level }} → {{ promo.to_level|upper }}</div>
+                <div class="track-meta">
+                    <span>Effective {{ promo.effective_date.strftime('%Y-%m-%d') }}</span>
+                    <span>•</span>
+                    <span>Approved by {{ promo.approved_by_user.name }}</span>
+                </div>
+                {% if promo.note %}
+                <div class="lesson-summary">{{ promo.note }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if mit.notes %}
+<div class="card">
+    <div class="card-header">
+        <h3>Notes</h3>
+    </div>
+    <div class="lesson-content">{{ mit.notes }}</div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Promotion Queue{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MIT STS</p>
+        <h2>Promotion Queue</h2>
+        <p class="subtle">MITs whose current level is 100% complete.</p>
+    </div>
+
+    <div class="track-actions">
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.dashboard') }}">Back to MIT Dashboard</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Ready for Promotion</h3>
+        <p>{{ ready_mits|length }} MIT{{ '' if ready_mits|length == 1 else 's' }} ready</p>
+    </div>
+
+    {% if ready_mits %}
+    <div class="track-list">
+        {% for mit, progress, next_level in ready_mits %}
+        <div class="track-row">
+            <div style="width:100%;">
+                <div class="track-title">{{ mit.mit_user.name }}</div>
+                <div class="track-meta">
+                    <span>Store {{ mit.store_number or 'Not set' }}</span>
+                    <span>•</span>
+                    <span>Current Level {{ mit.current_level }}</span>
+                    <span>•</span>
+                    <span>{{ progress }}% complete</span>
+                    <span>•</span>
+                    <span>Next: {{ next_level|upper }}</span>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ progress }}%;"></div>
+                </div>
+            </div>
+
+            <div class="track-actions">
+                <form method="POST" action="{{ url_for('mit_sts.promote_mit', mit_id=mit.id) }}">
+                    <input type="date" name="effective_date">
+                    <input type="text" name="note" placeholder="Promotion note">
+                    <button type="submit" class="btn btn-primary">Promote</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No MITs ready right now</h3>
+        <p>Once a current level reaches 100%, the MIT will appear here.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

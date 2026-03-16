@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">TRACK BUILDER</p>
+        <h2>{{ page_title }}</h2>
+        <p class="subtle">Create and manage training tracks for your team.</p>
+    </div>
+</div>
+
+<div class="card form-card">
+    <form method="POST" class="form-grid">
+        <div class="form-group">
+            <label>Title</label>
+            <input type="text" name="title" value="{{ track.title if track else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Slug</label>
+            <input type="text" name="slug" value="{{ track.slug if track else '' }}" required>
+        </div>
+
+        <div class="form-group form-group-full">
+            <label>Description</label>
+            <textarea name="description" rows="5">{{ track.description if track and track.description else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Audience Role</label>
+            <select name="audience_role">
+                <option value="">-- Select --</option>
+                <option value="employee" {% if track and track.audience_role == 'employee' %}selected{% endif %}>Employee</option>
+                <option value="manager" {% if track and track.audience_role == 'manager' %}selected{% endif %}>Manager</option>
+                <option value="supervisor" {% if track and track.audience_role == 'supervisor' %}selected{% endif %}>Supervisor</option>
+                <option value="training_director" {% if track and track.audience_role == 'training_director' %}selected{% endif %}>Training Director</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Level Label</label>
+            <input type="text" name="level_label" value="{{ track.level_label if track and track.level_label else '' }}" placeholder="Example: Day 1-2">
+        </div>
+
+        <div class="form-group">
+            <label>Sort Order</label>
+            <input type="number" name="sort_order" value="{{ track.sort_order if track else 0 }}">
+        </div>
+
+        {% if track %}
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="is_active" {% if track.is_active %}checked{% endif %}>
+                Active
+            </label>
+        </div>
+        {% endif %}
+
+        <div class="form-actions form-group-full">
+            <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+            <a href="{{ url_for('academy.dashboard') }}" class="btn btn-secondary">Back</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

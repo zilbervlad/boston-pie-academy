@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Quiz | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">QUIZ BUILDER</p>
+        <h2>Manage Quiz</h2>
+        <p class="subtle">Lesson: {{ lesson.title }}</p>
+    </div>
+
+    {% if quiz %}
+    <a class="btn btn-primary" href="{{ url_for('academy.new_quiz_question', quiz_id=quiz.id) }}">+ Add Question</a>
+    {% endif %}
+</div>
+
+<div class="card form-card" style="margin-bottom: 24px;">
+    <form method="POST" class="form-grid">
+        <div class="form-group">
+            <label>Quiz Title</label>
+            <input type="text" name="title" value="{{ quiz.title if quiz else lesson.title ~ ' Quiz' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Passing Score</label>
+            <input type="number" name="passing_score" value="{{ quiz.passing_score if quiz else 80 }}">
+        </div>
+
+        <div class="form-actions form-group-full">
+            <button type="submit" class="btn btn-primary">Save Quiz</button>
+            <a href="{{ url_for('academy.view_lesson', lesson_id=lesson.id) }}" class="btn btn-secondary">Back to Lesson</a>
+        </div>
+    </form>
+</div>
+
+{% if quiz %}
+<div class="card">
+    <div class="card-header">
+        <h3>Questions</h3>
+    </div>
+
+    {% if quiz.questions %}
+    <div class="track-list">
+        {% for question in quiz.questions %}
+        <div class="track-row">
+            <div style="width:100%;">
+                <div class="track-title">Q{{ loop.index }}. {{ question.prompt }}</div>
+                <div class="lesson-report-list">
+                    {% for choice in question.choices %}
+                    <div class="lesson-report-row">
+                        <div>{{ choice.choice_text }}</div>
+                        <div>
+                            {% if choice.is_correct %}
+                            <span class="completion-pill">Correct</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="track-actions">
+                <a class="btn btn-danger" href="{{ url_for('academy.delete_quiz_question', question_id=question.id) }}" onclick="return confirm('Delete this question?')">Delete</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No questions yet</h3>
+        <p>Add the first question to this quiz.</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Take Quiz | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">QUIZ</p>
+        <h2>{{ quiz.title }}</h2>
+        <p class="subtle">Lesson: {{ lesson.title }}</p>
+    </div>
+</div>
+
+{% if latest_attempt %}
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <h3>Latest Attempt</h3>
+    </div>
+    <div class="track-meta">
+        <span>Score: {{ latest_attempt.score }}%</span>
+        <span>•</span>
+        <span>{% if latest_attempt.passed %}Passed{% else %}Not Passed{% endif %}</span>
+    </div>
+</div>
+{% endif %}
+
+<form method="POST" action="{{ url_for('academy.submit_quiz', lesson_id=lesson.id) }}">
+    <div class="track-list">
+        {% for question in quiz.questions %}
+        <div class="card">
+            <div class="card-header">
+                <h3>Question {{ loop.index }}</h3>
+                <p>{{ question.prompt }}</p>
+            </div>
+
+            <div class="quiz-choice-list">
+                {% for choice in question.choices %}
+                <label class="quiz-choice">
+                    <input type="radio" name="question_{{ question.id }}" value="{{ choice.id }}" required>
+                    <span>{{ choice.choice_text }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="lesson-nav">
+        <div></div>
+        <div>
+            <a class="btn btn-secondary" href="{{ url_for('academy.view_lesson', lesson_id=lesson.id) }}">Back to Lesson</a>
+        </div>
+        <div>
+            <button type="submit" class="btn btn-primary">Submit Quiz</button>
+        </div>
+    </div>
+</form>
+{% endblock %}

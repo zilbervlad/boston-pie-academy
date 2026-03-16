@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MODULE BUILDER</p>
+        <h2>{{ page_title }}</h2>
+        <p class="subtle">Track: {{ track.title }}</p>
+    </div>
+</div>
+
+<div class="card form-card">
+    <form method="POST" class="form-grid">
+        <div class="form-group">
+            <label>Module Title</label>
+            <input type="text" name="title" value="{{ module.title if module else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Sort Order</label>
+            <input type="number" name="sort_order" value="{{ module.sort_order if module else 0 }}">
+        </div>
+
+        <div class="form-group form-group-full">
+            <label>Description</label>
+            <textarea name="description" rows="5">{{ module.description if module and module.description else '' }}</textarea>
+        </div>
+
+        {% if module %}
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="is_active" {% if module.is_active %}checked{% endif %}>
+                Active
+            </label>
+        </div>
+        {% endif %}
+
+        <div class="form-actions form-group-full">
+            <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+            <a href="{{ url_for('academy.view_track', track_id=track.id) }}" class="btn btn-secondary">Back</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

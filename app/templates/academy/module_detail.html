@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lesson.title }} | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">LESSON VIEW</p>
+        <h2>{{ lesson.title }}</h2>
+        <p class="subtle">{{ lesson.summary or 'No summary yet.' }}</p>
+    </div>
+
+    <div class="track-actions">
+        {% if lesson.requires_quiz and lesson.quiz %}
+        <a class="btn btn-primary" href="{{ url_for('academy.take_quiz', lesson_id=lesson.id) }}">Take Quiz</a>
+        {% endif %}
+
+        {% if progress.status == 'completed' %}
+        <form method="POST" action="{{ url_for('academy.mark_lesson_incomplete', lesson_id=lesson.id) }}">
+            <button type="submit" class="btn btn-secondary">Mark In Progress</button>
+        </form>
+        {% else %}
+        <form method="POST" action="{{ url_for('academy.complete_lesson', lesson_id=lesson.id) }}">
+            <button type="submit" class="btn btn-primary">Mark Complete</button>
+        </form>
+        {% endif %}
+
+        {% if user.role in ['admin', 'training_director'] %}
+        <a class="btn btn-secondary" href="{{ url_for('academy.manage_quiz', lesson_id=lesson.id) }}">Manage Quiz</a>
+        <a class="btn btn-secondary" href="{{ url_for('academy.edit_lesson', lesson_id=lesson.id) }}">Edit Lesson</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="card stat-card">
+        <span class="stat-label">Type</span>
+        <h3>{{ lesson.lesson_type|title }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Status</span>
+        <h3>{{ lesson.status|title }}</h3>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">My Progress</span>
+        <h3>{{ progress.status|replace('_', ' ')|title }}</h3>
+    </div>
+</div>
+
+{% if lesson.requires_quiz %}
+<div class="card">
+    <div class="card-header">
+        <h3>Quiz Requirement</h3>
+        <p>This lesson requires a quiz before completion.</p>
+    </div>
+
+    {% if latest_attempt %}
+        {% if latest_attempt.passed %}
+        <div class="completion-banner">
+            Quiz passed with {{ latest_attempt.score }}%.
+        </div>
+        {% else %}
+        <div class="status-pill status-not-started" style="display:inline-flex; margin-top: 8px;">
+            Latest attempt: {{ latest_attempt.score }}% — not passed
+        </div>
+        {% endif %}
+    {% else %}
+        <div class="status-pill status-not-started" style="display:inline-flex; margin-top: 8px;">
+            Quiz not taken yet
+        </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h3>Module Progress {% if module_complete %}<span class="completion-pill">Complete</span>{% endif %}</h3>
+        <p>{{ module_progress }}% complete</p>
+    </div>
+    <div class="progress-bar">
+        <div class="progress-fill" style="width: {{ module_progress }}%;"></div>
+    </div>
+</div>
+
+{% if track_complete %}
+<div class="card">
+    <div class="card-header">
+        <h3>Track Complete</h3>
+        <p>You completed this entire training track.</p>
+    </div>
+    <div class="completion-banner">
+        🎉 Great job — this track is complete.
+    </div>
+</div>
+{% endif %}
+
+{% if embed_url %}
+<div class="card">
+    <div class="card-header">
+        <h3>Video Lesson</h3>
+        <p>Embedded preview</p>
+    </div>
+    <div class="video-frame-wrap">
+        <iframe
+            src="{{ embed_url }}"
+            title="{{ lesson.title }}"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen>
+        </iframe>
+    </div>
+</div>
+{% elif lesson.video_url %}
+<div class="card">
+    <div class="card-header">
+        <h3>Video Link</h3>
+    </div>
+    <p><a class="btn btn-primary" href="{{ lesson.video_url }}" target="_blank">Open Video</a></p>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h3>Lesson Content</h3>
+    </div>
+    <div class="lesson-content">{{ lesson.content or 'No lesson content yet.' }}</div>
+</div>
+
+<div class="lesson-nav">
+    <div>
+        {% if prev_lesson %}
+        <a class="btn btn-secondary" href="{{ url_for('academy.view_lesson', lesson_id=prev_lesson.id) }}">← Previous Lesson</a>
+        {% endif %}
+    </div>
+
+    <div>
+        <a class="btn btn-secondary" href="{{ url_for('academy.view_module', module_id=module.id) }}">Back to Module</a>
+    </div>
+
+    <div>
+        {% if next_lesson %}
+        <a class="btn btn-primary" href="{{ url_for('academy.view_lesson', lesson_id=next_lesson.id) }}">Next Lesson →</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

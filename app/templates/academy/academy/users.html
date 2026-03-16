@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Users | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">USER MANAGEMENT</p>
+        <h2>Users</h2>
+        <p class="subtle">Create and manage employee and leadership accounts.</p>
+    </div>
+
+    <a class="btn btn-primary" href="{{ url_for('academy.new_user') }}">+ New User</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>All Users</h3>
+    </div>
+
+    {% if users %}
+    <div class="track-list">
+        {% for item in users %}
+        <div class="track-row">
+            <div>
+                <div class="track-title">{{ item.name }}</div>
+                <div class="track-meta">
+                    <span>{{ item.username }}</span>
+                    <span>•</span>
+                    <span>{{ item.role|replace('_', ' ')|title }}</span>
+                    <span>•</span>
+                    <span>{{ 'Active' if item.is_active_user else 'Inactive' }}</span>
+                </div>
+            </div>
+
+            <div class="track-actions">
+                <a class="btn btn-secondary" href="{{ url_for('academy.edit_user', user_id=item.id) }}">Edit</a>
+                {% if item.id != current_user.id %}
+                <a class="btn btn-danger" href="{{ url_for('academy.delete_user', user_id=item.id) }}" onclick="return confirm('Delete this user?')">Delete</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No users yet</h3>
+        <p>Create your first employee or manager account.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

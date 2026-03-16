@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Tracks | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">TRACK LIBRARY</p>
+        <h2>Training Tracks</h2>
+        <p class="subtle">This is the full content library for your academy.</p>
+    </div>
+
+    <a class="btn btn-primary" href="{{ url_for('academy.new_track') }}">+ New Track</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>All Tracks</h3>
+        <p>Create, edit, and organize your academy content here.</p>
+    </div>
+
+    {% if tracks %}
+        <div class="track-list">
+            {% for track in tracks %}
+            <div class="track-row">
+                <div>
+                    <div class="track-title">{{ track.title }}</div>
+                    <div class="track-meta">
+                        <span>{{ track.audience_role or 'No audience role' }}</span>
+                        <span>•</span>
+                        <span>{{ track.level_label or 'No level label' }}</span>
+                        <span>•</span>
+                        <span>{{ track_progress.get(track.id, 0) }}% complete</span>
+                    </div>
+
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ track_progress.get(track.id, 0) }}%;"></div>
+                    </div>
+                </div>
+
+                <div class="track-actions">
+                    <a class="btn btn-secondary" href="{{ url_for('academy.view_track', track_id=track.id) }}">Open</a>
+                    <a class="btn btn-secondary" href="{{ url_for('academy.edit_track', track_id=track.id) }}">Edit</a>
+                    <a class="btn btn-danger" href="{{ url_for('academy.delete_track', track_id=track.id) }}" onclick="return confirm('Delete this track?')">Delete</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <h3>No tracks yet</h3>
+            <p>Create your first training track.</p>
+            <a class="btn btn-primary" href="{{ url_for('academy.new_track') }}">Create Track</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}MIT Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MIT STS</p>
+        <h2>Leadership Dashboard</h2>
+        <p class="subtle">Track readiness, blockers, and task flow across all MITs.</p>
+    </div>
+
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.list_mits') }}">View All MITs</a>
+        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_mit') }}">+ New MIT</a>
+    </div>
+</div>
+
+<div class="mit-dashboard-grid">
+    <a class="mit-metric-card" href="{{ url_for('mit_sts.list_mits') }}">
+        <span class="mit-metric-label">Total MITs</span>
+        <h3>{{ total_mits }}</h3>
+        <p>Open full MIT list</p>
+    </a>
+
+    <a class="mit-metric-card" href="{{ url_for('mit_sts.list_mits', level='1') }}">
+        <span class="mit-metric-label">Level 1</span>
+        <h3>{{ level_1_count }}</h3>
+        <p>View Level 1 MITs</p>
+    </a>
+
+    <a class="mit-metric-card" href="{{ url_for('mit_sts.list_mits', level='2') }}">
+        <span class="mit-metric-label">Level 2</span>
+        <h3>{{ level_2_count }}</h3>
+        <p>View Level 2 MITs</p>
+    </a>
+
+    <a class="mit-metric-card" href="{{ url_for('mit_sts.list_mits', level='3') }}">
+        <span class="mit-metric-label">Level 3</span>
+        <h3>{{ level_3_count }}</h3>
+        <p>View Level 3 MITs</p>
+    </a>
+
+    <a class="mit-metric-card mit-metric-ready" href="{{ url_for('mit_sts.list_mits', status='ready') }}">
+        <span class="mit-metric-label">Ready</span>
+        <h3>{{ ready_count }}</h3>
+        <p>Open ready MITs</p>
+    </a>
+
+    <a class="mit-metric-card mit-metric-blocked" href="{{ url_for('mit_sts.list_mits', status='blocked') }}">
+        <span class="mit-metric-label">Blocked</span>
+        <h3>{{ blocked_count }}</h3>
+        <p>Open blocked MITs</p>
+    </a>
+
+    <a class="mit-metric-card mit-metric-overdue" href="{{ url_for('mit_sts.list_mits', task_filter='overdue') }}">
+        <span class="mit-metric-label">Overdue Tasks</span>
+        <h3>{{ overdue_tasks_count }}</h3>
+        <p>Open MITs with overdue work</p>
+    </a>
+
+    <a class="mit-metric-card mit-metric-submitted" href="{{ url_for('mit_sts.list_mits', task_filter='submitted') }}">
+        <span class="mit-metric-label">Submitted Tasks</span>
+        <h3>{{ submitted_tasks_count }}</h3>
+        <p>Open MITs waiting on review</p>
+    </a>
+</div>
+
+<div class="mit-section-card">
+    <div class="mit-section-header">
+        <div>
+            <h3>Recent MIT Profiles</h3>
+            <p>Quick access to the most recently created MITs.</p>
+        </div>
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.list_mits') }}">Open Full List</a>
+    </div>
+
+    {% if recent_mits %}
+    <div class="mit-recent-list">
+        {% for mit in recent_mits %}
+        <div class="mit-recent-row">
+            <div class="mit-recent-main">
+                <div class="mit-recent-name">{{ mit.mit_user.name }}</div>
+                <div class="mit-recent-meta">
+                    <span>Store {{ mit.store_number or 'Not set' }}</span>
+                    <span>•</span>
+                    <span>Level {{ mit.current_level }}</span>
+                    {% if mit.coach_user %}
+                    <span>•</span>
+                    <span>Coach: {{ mit.coach_user.name }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="mit-recent-side">
+                {% if mit.sts_status == "ready" %}
+                <span class="mit-status-pill mit-status-ready">Ready</span>
+                {% elif mit.sts_status == "blocked" %}
+                <span class="mit-status-pill mit-status-blocked">Blocked</span>
+                {% elif mit.sts_status == "promoted" %}
+                <span class="mit-status-pill mit-status-submitted">Promoted</span>
+                {% elif mit.sts_status == "inactive" %}
+                <span class="mit-status-pill mit-status-muted">Inactive</span>
+                {% else %}
+                <span class="mit-status-pill mit-status-warning">{{ mit.sts_status|replace('_', ' ')|title }}</span>
+                {% endif %}
+
+                <div class="mit-recent-actions">
+                    <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
+                    <a class="btn btn-secondary" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No MIT profiles yet</h3>
+        <p>Create your first MIT profile to get started.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.mit-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(220px, 1fr));
+    gap: 18px;
+    margin-top: 24px;
+}
+
+.mit-metric-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 150px;
+    padding: 20px;
+    border-radius: 18px;
+    text-decoration: none;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.mit-metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.mit-metric-card h3 {
+    margin: 10px 0 8px;
+    font-size: 34px;
+    line-height: 1;
+}
+
+.mit-metric-card p {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.74;
+}
+
+.mit-metric-label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.82;
+}
+
+.mit-metric-ready {
+    border-left: 4px solid #22c55e;
+}
+
+.mit-metric-blocked {
+    border-left: 4px solid #ef4444;
+}
+
+.mit-metric-overdue {
+    border-left: 4px solid #f59e0b;
+}
+
+.mit-metric-submitted {
+    border-left: 4px solid #3b82f6;
+}
+
+.mit-section-card {
+    margin-top: 24px;
+    padding: 22px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.mit-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+
+.mit-section-header h3 {
+    margin: 0 0 4px;
+}
+
+.mit-section-header p {
+    margin: 0;
+    opacity: 0.74;
+}
+
+.mit-recent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.mit-recent-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 18px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mit-recent-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.mit-recent-name {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.mit-recent-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 14px;
+    opacity: 0.78;
+}
+
+.mit-recent-side {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.mit-recent-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mit-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 84px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.mit-status-ready {
+    background: rgba(34, 197, 94, 0.16);
+    color: #4ade80;
+}
+
+.mit-status-blocked {
+    background: rgba(239, 68, 68, 0.16);
+    color: #f87171;
+}
+
+.mit-status-warning {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+}
+
+.mit-status-submitted {
+    background: rgba(59, 130, 246, 0.16);
+    color: #60a5fa;
+}
+
+.mit-status-muted {
+    background: rgba(148, 163, 184, 0.16);
+    color: #cbd5e1;
+}
+
+@media (max-width: 1200px) {
+    .mit-dashboard-grid {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .mit-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mit-metric-card {
+        min-height: 130px;
+    }
+
+    .mit-recent-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .mit-recent-side {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+</style>
+{% endblock %}

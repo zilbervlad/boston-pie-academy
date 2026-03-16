@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">USER MANAGEMENT</p>
+        <h2>{{ page_title }}</h2>
+        <p class="subtle">Create or update a user account.</p>
+    </div>
+</div>
+
+<div class="card form-card">
+    <form method="POST" class="form-grid">
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" name="name" value="{{ edit_user.name if edit_user else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" value="{{ edit_user.username if edit_user else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Password {% if edit_user %}(leave blank to keep current){% endif %}</label>
+            <input type="password" name="password" {% if not edit_user %}required{% endif %}>
+        </div>
+
+        <div class="form-group">
+            <label>Role</label>
+            <select name="role" required>
+                {% set current_role = edit_user.role if edit_user else 'tm' %}
+                <option value="tm" {% if current_role == 'tm' %}selected{% endif %}>TM</option>
+                <option value="mit" {% if current_role == 'mit' %}selected{% endif %}>MIT</option>
+                <option value="coach" {% if current_role == 'coach' %}selected{% endif %}>Coach</option>
+                <option value="admin" {% if current_role == 'admin' %}selected{% endif %}>Admin</option>
+                <option value="training_director" {% if current_role == 'training_director' %}selected{% endif %}>Director of Training</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Store Number</label>
+            <input type="text" name="store_number" value="{{ edit_user.store_number if edit_user and edit_user.store_number else '' }}">
+        </div>
+
+        {% if edit_user %}
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="is_active_user" {% if edit_user.is_active_user %}checked{% endif %}>
+                Active User
+            </label>
+        </div>
+        {% endif %}
+
+        <div class="form-actions form-group-full">
+            <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+            <a href="{{ url_for('academy.manage_users') }}" class="btn btn-secondary">Back</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">LESSON BUILDER</p>
+        <h2>{{ page_title }}</h2>
+        <p class="subtle">Track: {{ track.title }} • Module: {{ module.title }}</p>
+    </div>
+</div>
+
+<div class="card form-card">
+    <form method="POST" class="form-grid">
+        <div class="form-group">
+            <label>Lesson Title</label>
+            <input type="text" name="title" value="{{ lesson.title if lesson else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Slug</label>
+            <input type="text" name="slug" value="{{ lesson.slug if lesson else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Lesson Type</label>
+            <select name="lesson_type">
+                {% set current_type = lesson.lesson_type if lesson else 'text' %}
+                <option value="text" {% if current_type == 'text' %}selected{% endif %}>Text</option>
+                <option value="video" {% if current_type == 'video' %}selected{% endif %}>Video</option>
+                <option value="document" {% if current_type == 'document' %}selected{% endif %}>Document</option>
+                <option value="quiz" {% if current_type == 'quiz' %}selected{% endif %}>Quiz</option>
+                <option value="signoff" {% if current_type == 'signoff' %}selected{% endif %}>Sign-off</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Status</label>
+            {% set current_status = lesson.status if lesson else 'draft' %}
+            <select name="status">
+                <option value="draft" {% if current_status == 'draft' %}selected{% endif %}>Draft</option>
+                <option value="published" {% if current_status == 'published' %}selected{% endif %}>Published</option>
+                <option value="archived" {% if current_status == 'archived' %}selected{% endif %}>Archived</option>
+            </select>
+        </div>
+
+        <div class="form-group form-group-full">
+            <label>Summary</label>
+            <textarea name="summary" rows="3">{{ lesson.summary if lesson and lesson.summary else '' }}</textarea>
+        </div>
+
+        <div class="form-group form-group-full">
+            <label>Lesson Content</label>
+            <textarea name="content" rows="10">{{ lesson.content if lesson and lesson.content else '' }}</textarea>
+        </div>
+
+        <div class="form-group form-group-full">
+            <label>Video URL</label>
+            <input type="text" name="video_url" value="{{ lesson.video_url if lesson and lesson.video_url else '' }}" placeholder="Paste YouTube, Vimeo, Loom, or hosted video URL">
+        </div>
+
+        <div class="form-group">
+            <label>Passing Score</label>
+            <input type="number" name="passing_score" value="{{ lesson.passing_score if lesson else 80 }}">
+        </div>
+
+        <div class="form-group">
+            <label>Estimated Minutes</label>
+            <input type="number" name="estimated_minutes" value="{{ lesson.estimated_minutes if lesson else 5 }}">
+        </div>
+
+        <div class="form-group">
+            <label>Sort Order</label>
+            <input type="number" name="sort_order" value="{{ lesson.sort_order if lesson else 0 }}">
+        </div>
+
+        <div class="form-group">
+            <label>Sign-off Role</label>
+            {% set current_signoff = lesson.signoff_role if lesson else '' %}
+            <select name="signoff_role">
+                <option value="" {% if not current_signoff %}selected{% endif %}>-- None --</option>
+                <option value="manager" {% if current_signoff == 'manager' %}selected{% endif %}>Manager</option>
+                <option value="supervisor" {% if current_signoff == 'supervisor' %}selected{% endif %}>Supervisor</option>
+                <option value="training_director" {% if current_signoff == 'training_director' %}selected{% endif %}>Training Director</option>
+            </select>
+        </div>
+
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="requires_quiz" {% if lesson and lesson.requires_quiz %}checked{% endif %}>
+                Requires Quiz
+            </label>
+        </div>
+
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="requires_signoff" {% if lesson and lesson.requires_signoff %}checked{% endif %}>
+                Requires Sign-off
+            </label>
+        </div>
+
+        {% if lesson %}
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="is_active" {% if lesson.is_active %}checked{% endif %}>
+                Active
+            </label>
+        </div>
+        {% endif %}
+
+        <div class="form-actions form-group-full">
+            <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+            <a href="{{ url_for('academy.view_module', module_id=module.id) }}" class="btn btn-secondary">Back</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

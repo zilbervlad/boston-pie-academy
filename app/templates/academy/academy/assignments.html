@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Assignments | Boston Pie Academy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">TRACK ASSIGNMENTS</p>
+        <h2>Assignments</h2>
+        <p class="subtle">Assign training tracks to employees and leaders.</p>
+    </div>
+</div>
+
+<div class="card form-card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <h3>Assign Track</h3>
+    </div>
+
+    <form method="POST" action="{{ url_for('academy.new_assignment') }}" class="form-grid">
+        <div class="form-group">
+            <label>User</label>
+            <select name="user_id" required>
+                <option value="">-- Select User --</option>
+                {% for item in users %}
+                <option value="{{ item.id }}">{{ item.name }} ({{ item.role|replace('_', ' ')|title }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Track</label>
+            <select name="track_id" required>
+                <option value="">-- Select Track --</option>
+                {% for track in tracks %}
+                <option value="{{ track.id }}">{{ track.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-actions form-group-full">
+            <button type="submit" class="btn btn-primary">Assign Track</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Current Assignments</h3>
+    </div>
+
+    {% if assignments %}
+    <div class="track-list">
+        {% for assignment in assignments %}
+        <div class="track-row">
+            <div>
+                <div class="track-title">{{ assignment.user.name }}</div>
+                <div class="track-meta">
+                    <span>{{ assignment.track.title }}</span>
+                    <span>•</span>
+                    <span>{{ assignment.assigned_at.strftime('%Y-%m-%d') }}</span>
+                </div>
+            </div>
+
+            <div class="track-actions">
+                <a class="btn btn-danger" href="{{ url_for('academy.delete_assignment', assignment_id=assignment.id) }}" onclick="return confirm('Remove this assignment?')">Remove</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No assignments yet</h3>
+        <p>Assign a training track to get started.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
