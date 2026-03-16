@@ -3,13 +3,13 @@
 {% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header page-header-tight">
     <div>
         <p class="eyebrow">MIT TASKS</p>
         <h2>{{ page_title }}</h2>
         <p class="subtle">Assign and manage STS tasks for {{ mit.mit_user.name }}.</p>
 
-        <div class="task-board-legend">
+        <div class="task-board-legend task-board-legend-tight">
             <span class="task-legend-pill">
                 <span class="task-legend-dot task-dot-default"></span>
                 Not Started
@@ -30,14 +30,17 @@
     </div>
 
     <div class="track-actions">
+        {% if can_manage_templates %}
+        <a href="{{ url_for('mit_sts.template_library') }}" class="btn btn-secondary">Edit STS Items</a>
+        {% endif %}
         <a href="{{ url_for('mit_sts.view_tasks', mit_id=mit.id) }}" class="btn btn-secondary">Back</a>
     </div>
 </div>
 
 <div class="task-board-stack">
     {% for level_number, items in grouped_template_items.items() %}
-    <details class="task-level-dropdown" {% if loop.first %}open{% endif %}>
-        <summary class="task-level-summary">
+    <details class="task-level-dropdown task-level-dropdown-clean" {% if loop.first %}open{% endif %}>
+        <summary class="task-level-summary task-level-summary-clean">
             <div>
                 <h3>Level {{ level_number }}</h3>
                 <p>{{ items|length }} item{{ '' if items|length == 1 else 's' }}</p>
@@ -46,7 +49,7 @@
         </summary>
 
         <div class="task-level-body">
-            <div class="task-checkbox-list">
+            <div class="task-checkbox-list task-checkbox-list-tight">
                 {% for item in items %}
                     {% set progress = progress_map.get(item.id) %}
                     {% set linked_task = active_task_map.get(item.id) %}
@@ -54,7 +57,7 @@
                     {% set is_in_progress = progress and progress.status == 'in_progress' %}
                     {% set is_assigned = linked_task is not none %}
 
-                    <div class="task-checkbox-row
+                    <div class="task-checkbox-row task-checkbox-row-clean
                         {% if is_complete %} task-complete
                         {% elif is_assigned %} task-assigned
                         {% elif is_in_progress %} task-in-progress
@@ -65,6 +68,10 @@
                                 <span class="task-checkbox-fakebox"></span>
                                 <div>
                                     <div class="task-checkbox-text">{{ item.item_name }}</div>
+
+                                    {% if item.category %}
+                                    <div class="task-item-mini-meta">Category: {{ item.category }}</div>
+                                    {% endif %}
 
                                     {% if item.item_description %}
                                     <div class="task-item-description">{{ item.item_description }}</div>
@@ -96,7 +103,7 @@
                         </div>
 
                         {% if linked_task %}
-                        <div class="task-linked-box">
+                        <div class="task-linked-box task-linked-box-clean">
                             <div class="task-linked-header">
                                 <strong>Linked Task</strong>
                                 <span class="sts-task-status sts-task-{{ task_display_status(linked_task) }}">
@@ -106,21 +113,22 @@
 
                             <div class="task-linked-title">{{ linked_task.title }}</div>
 
-                            <div class="track-meta">
-                                <span>Priority: {{ linked_task.priority|title }}</span>
+                            <div class="task-meta-row">
+                                <span><strong>Priority:</strong> {{ linked_task.priority|title }}</span>
+                                <span>•</span>
                                 {% if linked_task.due_date %}
-                                <span>•</span>
-                                <span>Due {{ linked_task.due_date.strftime('%Y-%m-%d') }}</span>
+                                <span><strong>Due:</strong> {{ linked_task.due_date.strftime('%Y-%m-%d') }}</span>
                                 {% else %}
-                                <span>•</span>
-                                <span>No due date</span>
+                                <span><strong>Due:</strong> No due date</span>
                                 {% endif %}
                                 <span>•</span>
-                                <span>Assigned by {{ linked_task.assigned_by_user.name }}</span>
+                                <span><strong>Assigned by:</strong> {{ linked_task.assigned_by_user.name }}</span>
                             </div>
 
                             {% if linked_task.notes %}
-                            <div class="lesson-summary">{{ linked_task.notes }}</div>
+                            <div class="task-item-note">
+                                <strong>Notes:</strong> {{ linked_task.notes }}
+                            </div>
                             {% endif %}
 
                             <details class="task-manage-dropdown">
@@ -149,9 +157,9 @@
                                     <div class="form-group">
                                         <label>Action</label>
                                         <select name="action">
-                                            <option value="open">Open</option>
-                                            <option value="in_progress">In Progress</option>
-                                            <option value="submitted">Submitted</option>
+                                            <option value="open" {% if linked_task.status == 'open' %}selected{% endif %}>Open</option>
+                                            <option value="in_progress" {% if linked_task.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                                            <option value="submitted" {% if linked_task.status == 'submitted' %}selected{% endif %}>Submitted</option>
                                             <option value="verified">Verify Complete</option>
                                             <option value="cancelled">Cancel</option>
                                             <option value="unassign">Unassign</option>
@@ -164,7 +172,7 @@
                                     </div>
 
                                     <div class="form-actions form-group-full">
-                                        <button type="submit" class="btn btn-primary">Save Task Changes</button>
+                                        <button type="submit" class="btn btn-primary btn-sm">Save Task Changes</button>
                                     </div>
                                 </form>
                             </details>
@@ -209,7 +217,7 @@
                                 </div>
 
                                 <div class="form-actions form-group-full">
-                                    <button type="submit" class="btn btn-primary">Assign Task</button>
+                                    <button type="submit" class="btn btn-primary btn-sm">Assign Task</button>
                                 </div>
                             </form>
                         </details>

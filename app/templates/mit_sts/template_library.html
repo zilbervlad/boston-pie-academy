@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}STS Item Library{% endblock %}
+
+{% block content %}
+<div class="page-header page-header-tight">
+    <div>
+        <p class="eyebrow">STS TEMPLATE</p>
+        <h2>STS Item Library</h2>
+        <p class="subtle">Edit, organize, and maintain your MIT STS items.</p>
+    </div>
+
+    <div class="track-actions">
+        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_template_item') }}">+ New STS Item</a>
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.dashboard') }}">Back</a>
+    </div>
+</div>
+
+<div class="task-board-stack">
+    {% for level_number, items in grouped_templates.items() %}
+    <div class="task-section-card">
+        <div class="task-section-header">
+            <div>
+                <h3>Level {{ level_number }}</h3>
+                <p>{{ items|length }} item{{ '' if items|length == 1 else 's' }}</p>
+            </div>
+        </div>
+
+        <div class="task-list-compact">
+            {% for item in items %}
+            <div class="task-item-card">
+                <div class="task-item-main">
+                    <div class="task-item-topline">
+                        <h4>{{ item.item_name }}</h4>
+                        <span class="badge">{{ 'Required' if item.is_required else 'Optional' }}</span>
+                    </div>
+
+                    <div class="task-meta-row">
+                        <span><strong>Category:</strong> {{ item.category or 'General' }}</span>
+                        <span>•</span>
+                        <span><strong>Sort Order:</strong> {{ item.sort_order }}</span>
+                        {% if item.source_ref %}
+                        <span>•</span>
+                        <span><strong>Source:</strong> {{ item.source_ref }}</span>
+                        {% endif %}
+                    </div>
+
+                    {% if item.item_description %}
+                    <div class="task-item-description-text">{{ item.item_description }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="task-action-cluster">
+                    <a class="btn btn-secondary btn-sm" href="{{ url_for('mit_sts.edit_template_item', item_id=item.id) }}">Edit</a>
+
+                    <form method="POST" action="{{ url_for('mit_sts.delete_template_item', item_id=item.id) }}" onsubmit="return confirm('Delete this STS item?');">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -31,6 +31,10 @@ from app.models import (
 mit_sts_bp = Blueprint("mit_sts", __name__, url_prefix="/mit-sts")
 
 
+# --------------------------------------------------
+# ROLE HELPERS
+# --------------------------------------------------
+
 def is_tm():
     return current_user.is_authenticated and current_user.role == "tm"
 
@@ -63,11 +67,23 @@ def can_edit_mit():
     return is_leadership()
 
 
+def can_manage_templates():
+    return current_user.is_authenticated and current_user.role in [
+        "admin",
+        "training_director",
+        "coach",
+    ]
+
+
 def can_view_mit(mit):
     if is_leadership():
         return True
     return is_mit() and mit.user_id == current_user.id
 
+
+# --------------------------------------------------
+# DISPLAY / STATUS HELPERS
+# --------------------------------------------------
 
 def task_display_status(task):
     if task.status in ["verified", "cancelled"]:
@@ -314,6 +330,10 @@ def build_pdf_task_table(tasks, body_style, small_style):
     return table
 
 
+# --------------------------------------------------
+# DASHBOARD / CORE PAGES
+# --------------------------------------------------
+
 @mit_sts_bp.route("/my-mit")
 @login_required
 def my_mit():
@@ -361,6 +381,11 @@ def dashboard():
         if task.status == "submitted":
             submitted_tasks_count += 1
 
+    recent_progress_map = {
+        mit.id: calculate_level_progress(mit.id, mit.current_level)
+        for mit in recent_mits
+    }
+
     db.session.commit()
 
     return render_template(
@@ -374,6 +399,7 @@ def dashboard():
         overdue_tasks_count=overdue_tasks_count,
         submitted_tasks_count=submitted_tasks_count,
         recent_mits=recent_mits,
+        recent_progress_map=recent_progress_map,
         user=current_user,
     )
 
@@ -552,6 +578,10 @@ def list_mits():
         user=current_user,
     )
 
+
+# --------------------------------------------------
+# MIT PROFILE CRUD
+# --------------------------------------------------
 
 @mit_sts_bp.route("/mits/new", methods=["GET", "POST"])
 @login_required
@@ -747,8 +777,13 @@ def view_mit(mit_id):
         promotions=promotions,
         user=current_user,
         can_edit=can_edit_mit(),
+        can_manage_templates=can_manage_templates(),
     )
 
+
+# --------------------------------------------------
+# TASK PDF EXPORT
+# --------------------------------------------------
 
 @mit_sts_bp.route("/mits/<int:mit_id>/tasks/pdf")
 @login_required
@@ -924,6 +959,10 @@ def export_tasks_pdf(mit_id):
     )
 
 
+# --------------------------------------------------
+# LEVEL DETAIL / PROGRESS
+# --------------------------------------------------
+
 @mit_sts_bp.route("/mits/<int:mit_id>/level/<int:level_number>")
 @login_required
 def view_level(mit_id, level_number):
@@ -978,6 +1017,7 @@ def view_level(mit_id, level_number):
         task_display_status=task_display_status,
         user=current_user,
         can_edit=can_edit_mit(),
+        can_manage_templates=can_manage_templates(),
     )
 
 
@@ -1021,6 +1061,10 @@ def update_progress(progress_id):
     )
 
 
+# --------------------------------------------------
+# MIT TASKS LIST
+# --------------------------------------------------
+
 @mit_sts_bp.route("/mits/<int:mit_id>/tasks")
 @login_required
 def view_tasks(mit_id):
@@ -1053,8 +1097,13 @@ def view_tasks(mit_id):
         today=date.today(),
         user=current_user,
         can_edit=can_edit_mit(),
+        can_manage_templates=can_manage_templates(),
     )
 
+
+# --------------------------------------------------
+# TASK BOARD / ASSIGN SCREEN
+# --------------------------------------------------
 
 @mit_sts_bp.route("/mits/<int:mit_id>/tasks/new", methods=["GET", "POST"])
 @login_required
@@ -1064,6 +1113,7 @@ def new_task(mit_id):
         return redirect(url_for("academy.dashboard"))
 
     mit = MITProfile.query.get_or_404(mit_id)
+    ensure_progress_rows_for_mit(mit)
 
     all_template_items = MITLevelTemplate.query.order_by(
         MITLevelTemplate.level_number.asc(),
@@ -1083,6 +1133,7 @@ def new_task(mit_id):
     for task in MITTask.query.filter(
         MITTask.mit_profile_id == mit.id,
         MITTask.related_template_item_id.isnot(None),
+        MITTask.status.in_(["open", "in_progress", "submitted"])
     ).order_by(MITTask.created_at.desc()).all():
         if task.related_template_item_id not in active_task_map:
             active_task_map[task.related_template_item_id] = task
@@ -1097,6 +1148,7 @@ def new_task(mit_id):
         page_title="Assign MIT Tasks",
         submit_label="Assign Selected Tasks",
         user=current_user,
+        can_manage_templates=can_manage_templates(),
     )
 
 
@@ -1156,6 +1208,10 @@ def assign_board_task(progress_id):
         progress.completed_date = datetime.utcnow().date()
         progress.verified_by_user_id = current_user.id
     elif status == "in_progress":
+        progress.status = "in_progress"
+        progress.completed_date = None
+        progress.verified_by_user_id = None
+    elif status == "submitted":
         progress.status = "in_progress"
         progress.completed_date = None
         progress.verified_by_user_id = None
@@ -1234,25 +1290,20 @@ def manage_board_task(task_id):
             progress.verified_by_user_id = current_user.id
     else:
         task.completed_at = None
-        if progress and progress.status == "complete":
-            progress.status = "in_progress" if task.status in ["open", "in_progress", "submitted"] else progress.status
-            if task.status in ["open", "in_progress", "submitted"]:
+
+        if progress:
+            if task.status == "open":
+                progress.status = "not_started"
                 progress.completed_date = None
                 progress.verified_by_user_id = None
-
-    if progress:
-        if task.status == "open":
-            progress.status = "not_started"
-            progress.completed_date = None
-            progress.verified_by_user_id = None
-        elif task.status == "in_progress":
-            progress.status = "in_progress"
-            progress.completed_date = None
-            progress.verified_by_user_id = None
-        elif task.status == "submitted":
-            progress.status = "in_progress"
-            progress.completed_date = None
-            progress.verified_by_user_id = None
+            elif task.status in ["in_progress", "submitted"]:
+                progress.status = "in_progress"
+                progress.completed_date = None
+                progress.verified_by_user_id = None
+            elif task.status == "cancelled" and progress.status == "complete":
+                progress.status = "in_progress"
+                progress.completed_date = None
+                progress.verified_by_user_id = None
 
     refresh_mit_status(mit)
     db.session.commit()
@@ -1300,7 +1351,7 @@ def quick_add_task(task_id):
         related_template_item_id=template.id,
         assigned_by_user_id=current_user.id,
         due_date=due_date_obj,
-        priority=priority or "medium",
+        priority=priority if priority in ["low", "medium", "high"] else "medium",
         status="open",
         notes=notes or None,
     )
@@ -1321,7 +1372,7 @@ def submit_task_for_review(task_id):
         flash("You do not have permission to submit that task.", "danger")
         return redirect(url_for("academy.dashboard"))
 
-    if task.status not in ["open", "in_progress", "overdue"]:
+    if task.status not in ["open", "in_progress"] and task_display_status(task) != "overdue":
         flash("That task cannot be submitted right now.", "danger")
         return redirect(url_for("mit_sts.view_tasks", mit_id=mit.id))
 
@@ -1373,16 +1424,25 @@ def update_task_status(task_id):
     else:
         task.completed_at = None
 
-        if task.related_template_item_id and new_status in ["open", "in_progress", "submitted"]:
+        if task.related_template_item_id:
             progress = MITLevelProgress.query.filter_by(
                 mit_profile_id=task.mit_profile_id,
                 template_item_id=task.related_template_item_id,
             ).first()
 
-            if progress and progress.status == "complete":
-                progress.status = "in_progress"
-                progress.completed_date = None
-                progress.verified_by_user_id = None
+            if progress:
+                if new_status == "open":
+                    progress.status = "not_started"
+                    progress.completed_date = None
+                    progress.verified_by_user_id = None
+                elif new_status in ["in_progress", "submitted"]:
+                    progress.status = "in_progress"
+                    progress.completed_date = None
+                    progress.verified_by_user_id = None
+                elif new_status == "cancelled" and progress.status == "complete":
+                    progress.status = "in_progress"
+                    progress.completed_date = None
+                    progress.verified_by_user_id = None
 
     mit = MITProfile.query.get(task.mit_profile_id)
     if mit:
@@ -1402,3 +1462,186 @@ def update_task_status(task_id):
         return redirect(url_for("mit_sts.view_level", mit_id=task.mit_profile_id, level_number=level_number))
 
     return redirect(url_for("mit_sts.view_tasks", mit_id=task.mit_profile_id))
+
+
+# --------------------------------------------------
+# STS TEMPLATE MANAGEMENT
+# --------------------------------------------------
+
+@mit_sts_bp.route("/templates")
+@login_required
+def template_library():
+    if not can_manage_templates():
+        flash("You do not have permission to manage STS templates.", "danger")
+        return redirect(url_for("academy.dashboard"))
+
+    templates = MITLevelTemplate.query.order_by(
+        MITLevelTemplate.level_number.asc(),
+        MITLevelTemplate.category.asc(),
+        MITLevelTemplate.sort_order.asc(),
+        MITLevelTemplate.id.asc(),
+    ).all()
+
+    grouped_templates = defaultdict(list)
+    for item in templates:
+        grouped_templates[item.level_number].append(item)
+
+    return render_template(
+        "mit_sts/template_library.html",
+        grouped_templates=dict(grouped_templates),
+        user=current_user,
+    )
+
+
+@mit_sts_bp.route("/templates/new", methods=["GET", "POST"])
+@login_required
+def new_template_item():
+    if not can_manage_templates():
+        flash("You do not have permission to create STS items.", "danger")
+        return redirect(url_for("academy.dashboard"))
+
+    if request.method == "POST":
+        level_number_raw = request.form.get("level_number", "1").strip()
+        category = request.form.get("category", "").strip()
+        item_name = request.form.get("item_name", "").strip()
+        item_description = request.form.get("item_description", "").strip()
+        sort_order_raw = request.form.get("sort_order", "0").strip()
+        source_ref = request.form.get("source_ref", "").strip()
+        is_required = request.form.get("is_required") == "on"
+
+        if not item_name:
+            flash("Item name is required.", "danger")
+            return redirect(url_for("mit_sts.new_template_item"))
+
+        try:
+            level_number = int(level_number_raw)
+        except ValueError:
+            level_number = 1
+
+        if level_number not in [1, 2, 3]:
+            level_number = 1
+
+        try:
+            sort_order = int(sort_order_raw)
+        except ValueError:
+            sort_order = 0
+
+        item = MITLevelTemplate(
+            level_number=level_number,
+            category=category or None,
+            item_name=item_name,
+            item_description=item_description or None,
+            sort_order=sort_order,
+            is_required=is_required,
+            source_ref=source_ref or None,
+        )
+
+        db.session.add(item)
+        db.session.commit()
+
+        all_mits = MITProfile.query.all()
+        for mit in all_mits:
+            existing_progress = MITLevelProgress.query.filter_by(
+                mit_profile_id=mit.id,
+                template_item_id=item.id
+            ).first()
+            if not existing_progress:
+                db.session.add(MITLevelProgress(
+                    mit_profile_id=mit.id,
+                    template_item_id=item.id,
+                    status="not_started",
+                ))
+        db.session.commit()
+
+        flash("STS item created successfully.", "success")
+        return redirect(url_for("mit_sts.template_library"))
+
+    return render_template(
+        "mit_sts/template_form.html",
+        page_title="Create STS Item",
+        submit_label="Create STS Item",
+        item=None,
+        user=current_user,
+    )
+
+
+@mit_sts_bp.route("/templates/<int:item_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_template_item(item_id):
+    if not can_manage_templates():
+        flash("You do not have permission to edit STS items.", "danger")
+        return redirect(url_for("academy.dashboard"))
+
+    item = MITLevelTemplate.query.get_or_404(item_id)
+
+    if request.method == "POST":
+        level_number_raw = request.form.get("level_number", str(item.level_number)).strip()
+        category = request.form.get("category", "").strip()
+        item_name = request.form.get("item_name", "").strip()
+        item_description = request.form.get("item_description", "").strip()
+        sort_order_raw = request.form.get("sort_order", "0").strip()
+        source_ref = request.form.get("source_ref", "").strip()
+        is_required = request.form.get("is_required") == "on"
+
+        if not item_name:
+            flash("Item name is required.", "danger")
+            return redirect(url_for("mit_sts.edit_template_item", item_id=item.id))
+
+        try:
+            level_number = int(level_number_raw)
+        except ValueError:
+            level_number = item.level_number
+
+        if level_number not in [1, 2, 3]:
+            level_number = item.level_number
+
+        try:
+            sort_order = int(sort_order_raw)
+        except ValueError:
+            sort_order = item.sort_order or 0
+
+        item.level_number = level_number
+        item.category = category or None
+        item.item_name = item_name
+        item.item_description = item_description or None
+        item.sort_order = sort_order
+        item.is_required = is_required
+        item.source_ref = source_ref or None
+
+        db.session.commit()
+
+        flash("STS item updated successfully.", "success")
+        return redirect(url_for("mit_sts.template_library"))
+
+    return render_template(
+        "mit_sts/template_form.html",
+        page_title="Edit STS Item",
+        submit_label="Save Changes",
+        item=item,
+        user=current_user,
+    )
+
+
+@mit_sts_bp.route("/templates/<int:item_id>/delete", methods=["POST"])
+@login_required
+def delete_template_item(item_id):
+    if not can_manage_templates():
+        flash("You do not have permission to delete STS items.", "danger")
+        return redirect(url_for("academy.dashboard"))
+
+    item = MITLevelTemplate.query.get_or_404(item_id)
+
+    linked_active_task = MITTask.query.filter(
+        MITTask.related_template_item_id == item.id,
+        MITTask.status.in_(["open", "in_progress", "submitted"])
+    ).first()
+
+    if linked_active_task:
+        flash("You cannot delete an STS item while it has an active linked task.", "danger")
+        return redirect(url_for("mit_sts.template_library"))
+
+    db.session.delete(item)
+    db.session.commit()
+
+    flash("STS item deleted.", "success")
+    return redirect(url_for("mit_sts.template_library"))
