@@ -232,12 +232,12 @@ def pdf_task_status_label(task):
     return task_display_status(task).replace("_", " ").title()
 
 
-def build_pdf_task_table(tasks, body_style):
+def build_pdf_task_table(tasks, body_style, small_style):
     rows = [[
         Paragraph("<b>Task</b>", body_style),
         Paragraph("<b>Priority</b>", body_style),
         Paragraph("<b>Status</b>", body_style),
-        Paragraph("<b>Due Date</b>", body_style),
+        Paragraph("<b>Due</b>", body_style),
     ]]
 
     if not tasks:
@@ -249,30 +249,33 @@ def build_pdf_task_table(tasks, body_style):
         ])
     else:
         for task in tasks:
-            task_title = f"{task.title}"
-            extra_lines = []
+            task_lines = [
+                f"<b>{task.title}</b>",
+            ]
 
             if task.description:
-                extra_lines.append(f"<font size='8' color='#555555'>{task.description}</font>")
+                task_lines.append(
+                    f"<font color='#5b6474'>{task.description}</font>"
+                )
+
+            if task.assigned_by_user:
+                task_lines.append(
+                    f"<font color='#6b7280'>Assigned by: {task.assigned_by_user.name}</font>"
+                )
 
             if task.notes:
                 safe_notes = task.notes.replace("\n", "<br/>")
-                extra_lines.append(f"<font size='8' color='#444444'><b>Notes:</b> {safe_notes}</font>")
-
-            if task.assigned_by_user:
-                extra_lines.append(
-                    f"<font size='8' color='#666666'>Assigned by: {task.assigned_by_user.name}</font>"
+                task_lines.append(
+                    f"<font color='#6b7280'>Notes: {safe_notes}</font>"
                 )
 
             if task.completed_at:
-                extra_lines.append(
-                    f"<font size='8' color='#666666'>Completed: {format_pdf_datetime(task.completed_at)}</font>"
+                task_lines.append(
+                    f"<font color='#6b7280'>Completed: {format_pdf_datetime(task.completed_at)}</font>"
                 )
 
-            task_html = "<br/>".join([task_title] + extra_lines)
-
             rows.append([
-                Paragraph(task_html, body_style),
+                Paragraph("<br/>".join(task_lines), small_style),
                 Paragraph((task.priority or "-").title(), body_style),
                 Paragraph(pdf_task_status_label(task), body_style),
                 Paragraph(format_pdf_date(task.due_date), body_style),
@@ -280,23 +283,23 @@ def build_pdf_task_table(tasks, body_style):
 
     table = Table(
         rows,
-        colWidths=[3.85 * inch, 0.95 * inch, 1.1 * inch, 1.1 * inch],
+        colWidths=[4.35 * inch, 0.85 * inch, 1.0 * inch, 0.9 * inch],
         repeatRows=1,
     )
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("LEADING", (0, 0), (-1, -1), 12),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
+        ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d1d5db")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d1d5db")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
         ("LEFTPADDING", (0, 0), (-1, -1), 8),
         ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING", (0, 0), (-1, -1), 7),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
     ]))
     return table
 
@@ -768,10 +771,10 @@ def export_tasks_pdf(mit_id):
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=0.55 * inch,
-        leftMargin=0.55 * inch,
-        topMargin=0.55 * inch,
-        bottomMargin=0.55 * inch,
+        rightMargin=0.5 * inch,
+        leftMargin=0.5 * inch,
+        topMargin=0.5 * inch,
+        bottomMargin=0.5 * inch,
         title=f"{mit.mit_user.name} - MIT Task Sheet",
         author="Boston Pie Academy",
     )
@@ -781,19 +784,37 @@ def export_tasks_pdf(mit_id):
         "MitPdfTitle",
         parent=styles["Heading1"],
         fontName="Helvetica-Bold",
-        fontSize=18,
-        leading=22,
-        textColor=colors.HexColor("#111827"),
-        spaceAfter=6,
+        fontSize=22,
+        leading=26,
+        textColor=colors.HexColor("#0f172a"),
+        spaceAfter=4,
+    )
+    subtitle_style = ParagraphStyle(
+        "MitPdfSubtitle",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=11,
+        leading=14,
+        textColor=colors.HexColor("#334155"),
+        spaceAfter=2,
+    )
+    subtle_style = ParagraphStyle(
+        "MitPdfSubtle",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor("#64748b"),
+        spaceAfter=0,
     )
     section_style = ParagraphStyle(
         "MitPdfSection",
         parent=styles["Heading2"],
         fontName="Helvetica-Bold",
-        fontSize=12,
-        leading=15,
-        textColor=colors.HexColor("#1f2937"),
-        spaceBefore=10,
+        fontSize=12.5,
+        leading=16,
+        textColor=colors.HexColor("#0f172a"),
+        spaceBefore=8,
         spaceAfter=6,
     )
     body_style = ParagraphStyle(
@@ -805,74 +826,78 @@ def export_tasks_pdf(mit_id):
         alignment=TA_LEFT,
         textColor=colors.HexColor("#111827"),
     )
-    subtle_style = ParagraphStyle(
-        "MitPdfSubtle",
-        parent=body_style,
-        fontSize=8,
-        leading=10,
-        textColor=colors.HexColor("#6b7280"),
+    small_style = ParagraphStyle(
+        "MitPdfSmall",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=8.3,
+        leading=10.8,
+        alignment=TA_LEFT,
+        textColor=colors.HexColor("#111827"),
     )
 
     story = []
 
     story.append(Paragraph("MIT STS Task Sheet", title_style))
     story.append(Paragraph(
-        f"<b>{mit.mit_user.name}</b> - Store {mit.store_number or 'Not set'} - "
-        f"Level {mit.current_level} - Target {str(mit.target_level).upper()}",
-        body_style,
+        f"<b>{mit.mit_user.name}</b> • Store {mit.store_number or 'Not set'} • "
+        f"Level {mit.current_level} • Target {str(mit.target_level).upper()}",
+        subtitle_style,
     ))
     story.append(Paragraph(
-        f"Generated on {datetime.now().strftime('%Y-%m-%d %I:%M %p')} by "
-        f"{current_user.name}",
+        f"Generated on {datetime.now().strftime('%Y-%m-%d %I:%M %p')} by {current_user.name}",
         subtle_style,
     ))
-    story.append(Spacer(1, 0.16 * inch))
+    story.append(Spacer(1, 0.18 * inch))
 
     summary_table = Table([
         ["Coach", mit.coach_user.name if mit.coach_user else "Not set", "Status", mit.sts_status.replace("_", " ").title()],
         ["Start Date", format_pdf_date(mit.start_date), "Next Review", format_pdf_date(mit.next_review_date)],
         ["Overall Progress", f"{overall_progress}%", "Open Tasks", str(task_counts["open"])],
         ["Overdue Tasks", str(task_counts["overdue"]), "Submitted Tasks", str(task_counts["submitted"])],
-    ], colWidths=[1.2 * inch, 2.05 * inch, 1.2 * inch, 2.45 * inch])
+    ], colWidths=[1.15 * inch, 2.15 * inch, 1.15 * inch, 2.55 * inch])
 
     summary_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f9fafb")),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d1d5db")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
-        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e2e8f0")),
         ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
         ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("FONTNAME", (3, 0), (3, -1), "Helvetica"),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
+        ("FONTSIZE", (0, 0), (-1, -1), 9.2),
         ("LEADING", (0, 0), (-1, -1), 12),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
     ]))
     story.append(summary_table)
-    story.append(Spacer(1, 0.18 * inch))
+    story.append(Spacer(1, 0.22 * inch))
 
     story.append(Paragraph(f"Active Tasks ({len(active_tasks)})", section_style))
-    story.append(build_pdf_task_table(active_tasks, body_style))
-    story.append(Spacer(1, 0.18 * inch))
+    story.append(build_pdf_task_table(active_tasks, body_style, small_style))
+    story.append(Spacer(1, 0.2 * inch))
 
     story.append(Paragraph(f"Completed / Closed Tasks ({len(completed_tasks)})", section_style))
-    story.append(build_pdf_task_table(completed_tasks, body_style))
-    story.append(Spacer(1, 0.22 * inch))
+    story.append(build_pdf_task_table(completed_tasks, body_style, small_style))
+    story.append(Spacer(1, 0.25 * inch))
 
     story.append(Paragraph("Manager / Coach Sign-Off", section_style))
     signoff_table = Table([
         ["Reviewed By:", "__________________________________", "Date:", "________________"],
         ["Comments:", "__________________________________", "", ""],
         ["", "__________________________________", "", ""],
-    ], colWidths=[1.05 * inch, 3.15 * inch, 0.65 * inch, 1.35 * inch])
+    ], colWidths=[1.0 * inch, 3.1 * inch, 0.7 * inch, 1.45 * inch])
 
     signoff_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
+        ("FONTSIZE", (0, 0), (-1, -1), 9.2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 9),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ]))
     story.append(signoff_table)
@@ -1041,6 +1066,19 @@ def new_task(mit_id):
     for item in all_template_items:
         grouped_template_items[item.level_number].append(item)
 
+    progress_rows = MITLevelProgress.query.filter_by(mit_profile_id=mit.id).all()
+    progress_map = {row.template_item_id: row for row in progress_rows}
+
+    active_task_item_ids = {
+        task.related_template_item_id
+        for task in MITTask.query.filter(
+            MITTask.mit_profile_id == mit.id,
+            MITTask.related_template_item_id.isnot(None),
+            MITTask.status.in_(["open", "in_progress", "submitted"])
+        ).all()
+        if task.related_template_item_id is not None
+    }
+
     if request.method == "POST":
         due_date = request.form.get("due_date", "").strip()
         priority = request.form.get("priority", "medium").strip()
@@ -1129,6 +1167,8 @@ def new_task(mit_id):
         "mit_sts/mit_task_form.html",
         mit=mit,
         grouped_template_items=dict(grouped_template_items),
+        progress_map=progress_map,
+        active_task_item_ids=active_task_item_ids,
         page_title="Assign MIT Tasks",
         submit_label="Assign Selected Tasks",
         user=current_user,
