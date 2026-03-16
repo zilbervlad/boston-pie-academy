@@ -233,11 +233,21 @@ def pdf_task_status_label(task):
 
 
 def build_pdf_task_table(tasks, body_style, small_style):
+    header_style = ParagraphStyle(
+        "MitPdfTableHeader",
+        parent=body_style,
+        fontName="Helvetica-Bold",
+        fontSize=9,
+        leading=11,
+        textColor=colors.white,
+        alignment=TA_LEFT,
+    )
+
     rows = [[
-        Paragraph("<b>Task</b>", body_style),
-        Paragraph("<b>Priority</b>", body_style),
-        Paragraph("<b>Status</b>", body_style),
-        Paragraph("<b>Due</b>", body_style),
+        Paragraph("Task", header_style),
+        Paragraph("Priority", header_style),
+        Paragraph("Status", header_style),
+        Paragraph("Due", header_style),
     ]]
 
     if not tasks:
@@ -287,7 +297,7 @@ def build_pdf_task_table(tasks, body_style, small_style):
         repeatRows=1,
     )
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, 0), 9),
@@ -1069,110 +1079,186 @@ def new_task(mit_id):
     progress_rows = MITLevelProgress.query.filter_by(mit_profile_id=mit.id).all()
     progress_map = {row.template_item_id: row for row in progress_rows}
 
-    active_task_item_ids = {
-        task.related_template_item_id
-        for task in MITTask.query.filter(
-            MITTask.mit_profile_id == mit.id,
-            MITTask.related_template_item_id.isnot(None),
-            MITTask.status.in_(["open", "in_progress", "submitted"])
-        ).all()
-        if task.related_template_item_id is not None
-    }
-
-    if request.method == "POST":
-        due_date = request.form.get("due_date", "").strip()
-        priority = request.form.get("priority", "medium").strip()
-        notes = request.form.get("notes", "").strip()
-
-        selected_template_item_ids = request.form.getlist("selected_template_item_ids")
-        custom_task_titles = request.form.getlist("custom_task_titles")
-
-        due_date_obj = None
-        if due_date:
-            try:
-                due_date_obj = datetime.strptime(due_date, "%Y-%m-%d").date()
-            except ValueError:
-                pass
-
-        created_count = 0
-        skipped_count = 0
-
-        for raw_id in selected_template_item_ids:
-            try:
-                template_item_id = int(raw_id)
-            except ValueError:
-                continue
-
-            template_item = MITLevelTemplate.query.get(template_item_id)
-            if not template_item:
-                continue
-
-            existing_open_task = MITTask.query.filter(
-                MITTask.mit_profile_id == mit.id,
-                MITTask.related_template_item_id == template_item_id,
-                MITTask.status.in_(["open", "in_progress", "submitted"])
-            ).first()
-
-            if existing_open_task:
-                skipped_count += 1
-                continue
-
-            task = MITTask(
-                mit_profile_id=mit.id,
-                title=template_item.item_name,
-                description=template_item.item_description or None,
-                related_template_item_id=template_item.id,
-                assigned_by_user_id=current_user.id,
-                due_date=due_date_obj,
-                priority=priority or "medium",
-                status="open",
-                notes=notes or None,
-            )
-            db.session.add(task)
-            created_count += 1
-
-        for raw_title in custom_task_titles:
-            title = (raw_title or "").strip()
-            if not title:
-                continue
-
-            task = MITTask(
-                mit_profile_id=mit.id,
-                title=title,
-                description=None,
-                related_template_item_id=None,
-                assigned_by_user_id=current_user.id,
-                due_date=due_date_obj,
-                priority=priority or "medium",
-                status="open",
-                notes=notes or None,
-            )
-            db.session.add(task)
-            created_count += 1
-
-        if created_count == 0 and skipped_count == 0:
-            flash("Select at least one STS task or add a custom task.", "danger")
-            return redirect(url_for("mit_sts.new_task", mit_id=mit.id))
-
-        db.session.commit()
-
-        if skipped_count > 0:
-            flash(f"Assigned {created_count} task(s). Skipped {skipped_count} duplicate open STS task(s).", "success")
-        else:
-            flash(f"Assigned {created_count} task(s) successfully.", "success")
-
-        return redirect(url_for("mit_sts.view_tasks", mit_id=mit.id))
+    active_task_map = {}
+    for task in MITTask.query.filter(
+        MITTask.mit_profile_id == mit.id,
+        MITTask.related_template_item_id.isnot(None),
+    ).order_by(MITTask.created_at.desc()).all():
+        if task.related_template_item_id not in active_task_map:
+            active_task_map[task.related_template_item_id] = task
 
     return render_template(
         "mit_sts/mit_task_form.html",
         mit=mit,
         grouped_template_items=dict(grouped_template_items),
         progress_map=progress_map,
-        active_task_item_ids=active_task_item_ids,
+        active_task_map=active_task_map,
+        task_display_status=task_display_status,
         page_title="Assign MIT Tasks",
         submit_label="Assign Selected Tasks",
         user=current_user,
     )
+
+
+@mit_sts_bp.route("/tasks/board/<int:progress_id>/assign", methods=["POST"])
+@login_required
+def assign_board_task(progress_id):
+    if not is_leadership():
+        flash("You do not have permission to assign tasks.", "danger")
+        return redirect(url_for("academy.dashboard"))
+
+    progress = MITLevelProgress.query.get_or_404(progress_id)
+    template = MITLevelTemplate.query.get_or_404(progress.template_item_id)
+    mit = MITProfile.query.get_or_404(progress.mit_profile_id)
+
+    title = request.form.get("title", "").strip() or template.item_name
+    due_date_raw = request.form.get("due_date", "").strip()
+    priority = request.form.get("priority", "medium").strip()
+    notes = request.form.get("notes", "").strip()
+    status = request.form.get("status", "open").strip()
+    redirect_mit_id = request.args.get("mit_id", type=int) or mit.id
+
+    existing_open_task = MITTask.query.filter(
+        MITTask.mit_profile_id == progress.mit_profile_id,
+        MITTask.related_template_item_id == template.id,
+        MITTask.status.in_(["open", "in_progress", "submitted"])
+    ).first()
+
+    if existing_open_task:
+        flash("There is already an active task linked to this STS item.", "danger")
+        return redirect(url_for("mit_sts.new_task", mit_id=redirect_mit_id))
+
+    due_date_obj = None
+    if due_date_raw:
+        try:
+            due_date_obj = datetime.strptime(due_date_raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    if status not in ["open", "in_progress", "submitted", "verified"]:
+        status = "open"
+
+    task = MITTask(
+        mit_profile_id=progress.mit_profile_id,
+        title=title,
+        description=template.item_description or None,
+        related_template_item_id=template.id,
+        assigned_by_user_id=current_user.id,
+        due_date=due_date_obj,
+        priority=priority if priority in ["low", "medium", "high"] else "medium",
+        status=status,
+        notes=notes or None,
+    )
+
+    if status == "verified":
+        task.completed_at = datetime.utcnow()
+        progress.status = "complete"
+        progress.completed_date = datetime.utcnow().date()
+        progress.verified_by_user_id = current_user.id
+    elif status == "in_progress":
+        progress.status = "in_progress"
+        progress.completed_date = None
+        progress.verified_by_user_id = None
+    else:
+        progress.status = "not_started"
+        progress.completed_date = None
+        progress.verified_by_user_id = None
+
+    db.session.add(task)
+    refresh_mit_status(mit)
+    db.session.commit()
+
+    flash("Task assigned successfully.", "success")
+    return redirect(url_for("mit_sts.new_task", mit_id=redirect_mit_id))
+
+
+@mit_sts_bp.route("/tasks/board/<int:task_id>/manage", methods=["POST"])
+@login_required
+def manage_board_task(task_id):
+    if not is_leadership():
+        flash("You do not have permission to manage tasks.", "danger")
+        return redirect(url_for("academy.dashboard"))
+
+    task = MITTask.query.get_or_404(task_id)
+    mit = MITProfile.query.get_or_404(task.mit_profile_id)
+    redirect_mit_id = request.args.get("mit_id", type=int) or mit.id
+
+    title = request.form.get("title", "").strip()
+    due_date_raw = request.form.get("due_date", "").strip()
+    priority = request.form.get("priority", "medium").strip()
+    notes = request.form.get("notes", "").strip()
+    action = request.form.get("action", "").strip()
+
+    if title:
+        task.title = title
+
+    if priority in ["low", "medium", "high"]:
+        task.priority = priority
+
+    if due_date_raw:
+        try:
+            task.due_date = datetime.strptime(due_date_raw, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    else:
+        task.due_date = None
+
+    task.notes = notes or None
+
+    progress = None
+    if task.related_template_item_id:
+        progress = MITLevelProgress.query.filter_by(
+            mit_profile_id=task.mit_profile_id,
+            template_item_id=task.related_template_item_id,
+        ).first()
+
+    if action == "unassign":
+        if progress and progress.status == "complete":
+            progress.status = "in_progress"
+            progress.completed_date = None
+            progress.verified_by_user_id = None
+        db.session.delete(task)
+        refresh_mit_status(mit)
+        db.session.commit()
+        flash("Task unassigned.", "success")
+        return redirect(url_for("mit_sts.new_task", mit_id=redirect_mit_id))
+
+    if action in ["open", "in_progress", "submitted", "verified", "cancelled"]:
+        task.status = action
+
+    if task.status == "verified":
+        task.completed_at = datetime.utcnow()
+        if progress:
+            progress.status = "complete"
+            progress.completed_date = datetime.utcnow().date()
+            progress.verified_by_user_id = current_user.id
+    else:
+        task.completed_at = None
+        if progress and progress.status == "complete":
+            progress.status = "in_progress" if task.status in ["open", "in_progress", "submitted"] else progress.status
+            if task.status in ["open", "in_progress", "submitted"]:
+                progress.completed_date = None
+                progress.verified_by_user_id = None
+
+    if progress:
+        if task.status == "open":
+            progress.status = "not_started"
+            progress.completed_date = None
+            progress.verified_by_user_id = None
+        elif task.status == "in_progress":
+            progress.status = "in_progress"
+            progress.completed_date = None
+            progress.verified_by_user_id = None
+        elif task.status == "submitted":
+            progress.status = "in_progress"
+            progress.completed_date = None
+            progress.verified_by_user_id = None
+
+    refresh_mit_status(mit)
+    db.session.commit()
+
+    flash("Task updated.", "success")
+    return redirect(url_for("mit_sts.new_task", mit_id=redirect_mit_id))
 
 
 @mit_sts_bp.route("/tasks/<int:task_id>/quick-add", methods=["POST"])
