@@ -18,18 +18,24 @@
     </div>
 </div>
 
-{% if overdue_tasks_count > 0 %}
-    {% set message = overdue_tasks_count ~ " overdue task" ~ ("s" if overdue_tasks_count != 1 else "") ~ ". Clear those before pushing promotion." %}
+{% set current_level_progress = level_1_progress if mit.current_level == 1 else (level_2_progress if mit.current_level == 2 else level_3_progress) %}
+
+{% if mit.sts_status == "ready" %}
+    {% set message = mit.mit_user.name ~ " is ready for promotion review. Current level is complete and task flow looks clean." %}
+{% elif overdue_tasks_count > 0 %}
+    {% set message = mit.mit_user.name ~ " has " ~ overdue_tasks_count ~ " overdue task" ~ ("s" if overdue_tasks_count != 1 else "") ~ ". Clear those before talking promotion." %}
 {% elif submitted_tasks_count > 0 %}
-    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting for review." %}
+    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting on leadership review for " ~ mit.mit_user.name ~ "." %}
+{% elif open_tasks_count > 0 and current_level_progress >= 80 %}
+    {% set message = mit.mit_user.name ~ " is at " ~ current_level_progress ~ "% on Level " ~ mit.current_level ~ ". Close out the open task" ~ ("s" if open_tasks_count != 1 else "") ~ " and finish strong." %}
 {% elif open_tasks_count > 0 %}
-    {% set message = open_tasks_count ~ " open task" ~ ("s are" if open_tasks_count != 1 else " is") ~ " still in motion. Finish the current level strong." %}
-{% elif mit.sts_status == "ready" %}
-    {% set message = "This MIT looks ready. Time to review for promotion." %}
-{% elif overall_progress >= 80 %}
-    {% set message = "Progress is at " ~ overall_progress ~ "%. Almost there." %}
+    {% set message = mit.mit_user.name ~ " has " ~ open_tasks_count ~ " active task" ~ ("s" if open_tasks_count != 1 else "") ~ " on Level " ~ mit.current_level ~ ". Keep momentum on the current level." %}
+{% elif current_level_progress == 0 %}
+    {% set message = "No progress has started on Level " ~ mit.current_level ~ " yet. Assign the first task and get " ~ mit.mit_user.name ~ " moving." %}
+{% elif current_level_progress >= 80 %}
+    {% set message = mit.mit_user.name ~ " is at " ~ current_level_progress ~ "% on Level " ~ mit.current_level ~ ". Very close — focus on the last few items." %}
 {% else %}
-    {% set message = "Focus on finishing current level tasks before pushing promotion." %}
+    {% set message = mit.mit_user.name ~ " is at " ~ current_level_progress ~ "% on Level " ~ mit.current_level ~ ". Stay focused on consistent completion before pushing ahead." %}
 {% endif %}
 {% include "partials/doughy.html" %}
 
