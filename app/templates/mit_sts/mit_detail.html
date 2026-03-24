@@ -8,13 +8,13 @@
         <p class="eyebrow">MIT STS</p>
         <h2>{{ mit.mit_user.name }}</h2>
         <p class="subtle">
-            Store {{ mit.store_number or 'Not set' }} • Level {{ mit.current_level }}
+            Training record • Store {{ mit.store_number or 'Not set' }} • Level {{ mit.current_level }}
         </p>
     </div>
 
     <div class="track-actions">
         <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">+ Assign Task</a>
-        <a class="btn btn-secondary" href="{{ url_for('mit_sts.list_mits') }}">Back</a>
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.list_mits') }}">Back to MIT List</a>
     </div>
 </div>
 
@@ -23,25 +23,100 @@
 {% if mit.sts_status == "ready" %}
     {% set message = mit.mit_user.name ~ " is ready for promotion review. Current level is complete and task flow looks clean." %}
 {% elif overdue_tasks_count > 0 %}
-    {% set message = mit.mit_user.name ~ " has " ~ overdue_tasks_count ~ " overdue task" ~ ("s" if overdue_tasks_count != 1 else "") ~ ". Clear those before talking promotion." %}
+    {% set message = mit.mit_user.name ~ " has " ~ overdue_tasks_count ~ " overdue task" ~ ("s" if overdue_tasks_count != 1 else "") ~ ". Clear those before pushing promotion." %}
 {% elif submitted_tasks_count > 0 %}
-    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting on leadership review for " ~ mit.mit_user.name ~ "." %}
-{% elif open_tasks_count > 0 and current_level_progress >= 80 %}
-    {% set message = mit.mit_user.name ~ " is at " ~ current_level_progress ~ "% on Level " ~ mit.current_level ~ ". Close out the open task" ~ ("s" if open_tasks_count != 1 else "") ~ " and finish strong." %}
+    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting on review for " ~ mit.mit_user.name ~ "." %}
 {% elif open_tasks_count > 0 %}
-    {% set message = mit.mit_user.name ~ " has " ~ open_tasks_count ~ " active task" ~ ("s" if open_tasks_count != 1 else "") ~ " on Level " ~ mit.current_level ~ ". Keep momentum on the current level." %}
+    {% set message = mit.mit_user.name ~ " has " ~ open_tasks_count ~ " active task" ~ ("s" if open_tasks_count != 1 else "") ~ " on Level " ~ mit.current_level ~ "." %}
 {% elif current_level_progress == 0 %}
-    {% set message = "No progress has started on Level " ~ mit.current_level ~ " yet. Assign the first task and get " ~ mit.mit_user.name ~ " moving." %}
+    {% set message = "No progress has started on Level " ~ mit.current_level ~ " yet. Assign the first task and get momentum going." %}
 {% elif current_level_progress >= 80 %}
-    {% set message = mit.mit_user.name ~ " is at " ~ current_level_progress ~ "% on Level " ~ mit.current_level ~ ". Very close — focus on the last few items." %}
+    {% set message = mit.mit_user.name ~ " is at " ~ current_level_progress ~ "% on Level " ~ mit.current_level ~ ". Very close — finish the last few items." %}
 {% else %}
-    {% set message = mit.mit_user.name ~ " is at " ~ current_level_progress ~ "% on Level " ~ mit.current_level ~ ". Stay focused on consistent completion before pushing ahead." %}
+    {% set message = mit.mit_user.name ~ " is at " ~ current_level_progress ~ "% on Level " ~ mit.current_level ~ ". Keep the work focused and consistent." %}
 {% endif %}
 {% include "partials/doughy.html" %}
 
-<div class="stats-grid">
+<div class="card" style="margin-bottom: 18px;">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+        <div>
+            <h3>MIT Record Summary</h3>
+            <p>Core record details and current training status.</p>
+        </div>
+        <div class="badge">
+            Record #{{ mit.id }}
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap:16px;">
+        <div>
+            <div class="stat-label">Store</div>
+            <div style="margin-top:8px; font-size:18px; font-weight:700;">{{ mit.store_number or 'Not set' }}</div>
+        </div>
+
+        <div>
+            <div class="stat-label">Current Level</div>
+            <div style="margin-top:8px;">
+                <span class="pill pill-neutral">Level {{ mit.current_level }}</span>
+            </div>
+        </div>
+
+        <div>
+            <div class="stat-label">Coach</div>
+            <div style="margin-top:8px; font-size:18px; font-weight:700;">{{ mit.coach_user.name if mit.coach_user else 'Unassigned' }}</div>
+        </div>
+
+        <div>
+            <div class="stat-label">Status</div>
+            <div style="margin-top:8px;">
+                {% if mit.sts_status == "ready" %}
+                    <span class="pill pill-success">Ready</span>
+                {% elif mit.sts_status == "blocked" %}
+                    <span class="pill pill-danger">Blocked</span>
+                {% elif mit.sts_status == "promoted" %}
+                    <span class="pill pill-info">Promoted</span>
+                {% elif mit.sts_status == "inactive" %}
+                    <span class="pill pill-muted">Inactive</span>
+                {% else %}
+                    <span class="pill pill-warning">{{ mit.sts_status|replace('_', ' ')|title }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap:16px; margin-top:20px;">
+        <div>
+            <div class="stat-label">Start Date</div>
+            <div style="margin-top:8px; font-weight:700;">{{ mit.start_date.strftime('%Y-%m-%d') if mit.start_date else 'Not set' }}</div>
+        </div>
+
+        <div>
+            <div class="stat-label">Next Review</div>
+            <div style="margin-top:8px; font-weight:700;">{{ mit.next_review_date.strftime('%Y-%m-%d') if mit.next_review_date else 'Not set' }}</div>
+        </div>
+
+        <div>
+            <div class="stat-label">Overall Progress</div>
+            <div style="margin-top:8px; font-weight:700;">{{ overall_progress }}%</div>
+        </div>
+
+        <div>
+            <div class="stat-label">Incomplete This Level</div>
+            <div style="margin-top:8px; font-weight:700;">{{ incomplete_count }}</div>
+        </div>
+    </div>
+
+    {% if mit.notes %}
+    <div style="margin-top:20px; padding-top:18px; border-top:1px solid rgba(255,255,255,0.08);">
+        <div class="stat-label">Notes</div>
+        <div class="lesson-summary" style="margin-top:8px;">{{ mit.notes }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="stats-grid" style="grid-template-columns: repeat(4, minmax(180px, 1fr));">
     <div class="card stat-card">
-        <span class="stat-label">Progress</span>
+        <span class="stat-label">Overall Progress</span>
         <h3>{{ overall_progress }}%</h3>
     </div>
 
@@ -56,30 +131,110 @@
     </div>
 
     <div class="card stat-card">
-        <span class="stat-label">Status</span>
-        <h3>{{ mit.sts_status|replace('_', ' ')|title }}</h3>
+        <span class="stat-label">Submitted</span>
+        <h3>{{ submitted_tasks_count }}</h3>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <h3>Level Progress</h3>
-    </div>
-
-    <div class="track-list">
-        {% for lvl, prog in [(1, level_1_progress), (2, level_2_progress), (3, level_3_progress)] %}
-        <div class="track-row">
-            <div>
-                <div class="track-title">Level {{ lvl }}</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: {{ prog }}%;"></div>
-                </div>
-            </div>
-            <div class="track-actions">
-                <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_level', mit_id=mit.id, level_number=lvl) }}">Open</a>
-            </div>
+<div class="card" style="margin-top: 18px;">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+        <div>
+            <h3>Level Records</h3>
+            <p>Open each level to review requirements and completion status.</p>
         </div>
-        {% endfor %}
+        <div class="track-meta" style="margin-top:0;">
+            <span>Target Level:</span>
+            <span>{{ mit.target_level|upper }}</span>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="min-width: 140px;">Level</th>
+                    <th style="min-width: 180px;">Progress</th>
+                    <th>Current</th>
+                    <th>Status View</th>
+                    <th style="text-align:center; min-width: 120px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lvl, prog in [(1, level_1_progress), (2, level_2_progress), (3, level_3_progress)] %}
+                <tr>
+                    <td>
+                        <strong>Level {{ lvl }}</strong>
+                    </td>
+
+                    <td>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; color:#94a3b8; margin-bottom:4px;">
+                            <span>{{ prog }}%</span>
+                            <span>Completion</span>
+                        </div>
+                        <div class="progress-bar" style="margin-top:0;">
+                            <div class="progress-fill" style="width: {{ prog }}%;"></div>
+                        </div>
+                    </td>
+
+                    <td>
+                        {% if mit.current_level == lvl %}
+                            <span class="pill pill-info">Current Level</span>
+                        {% else %}
+                            <span class="pill pill-muted">—</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if prog == 100 %}
+                            <span class="pill pill-success">Complete</span>
+                        {% elif prog > 0 %}
+                            <span class="pill pill-warning">In Progress</span>
+                        {% else %}
+                            <span class="pill pill-muted">Not Started</span>
+                        {% endif %}
+                    </td>
+
+                    <td style="text-align:center;">
+                        <a class="btn btn-secondary btn-sm" href="{{ url_for('mit_sts.view_level', mit_id=mit.id, level_number=lvl) }}">Open</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
+
+{% if promotions %}
+<div class="card" style="margin-top: 18px;">
+    <div class="card-header">
+        <h3>Promotion History</h3>
+        <p>Recorded promotion activity for this MIT.</p>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Effective Date</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Approved By</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for promotion in promotions %}
+                <tr>
+                    <td>{{ promotion.effective_date.strftime('%Y-%m-%d') if promotion.effective_date else '—' }}</td>
+                    <td>Level {{ promotion.from_level }}</td>
+                    <td>{{ promotion.to_level|upper }}</td>
+                    <td>{{ promotion.approved_by_user.name if promotion.approved_by_user else '—' }}</td>
+                    <td>{{ promotion.note or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
