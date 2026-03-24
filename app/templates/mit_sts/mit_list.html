@@ -121,7 +121,7 @@
                 {% for mit in mits %}
                 {% set progress = progress_map.get(mit.id, 0) %}
                 {% set counts = task_counts_map.get(mit.id, {'open': 0, 'overdue': 0, 'submitted': 0}) %}
-                <tr>
+                <tr class="{% if counts.overdue > 0 %}mit-row-overdue{% endif %}">
                     <td><strong>{{ mit.mit_user.name }}</strong></td>
                     <td>{{ mit.store_number or 'Not set' }}</td>
                     <td><span class="pill pill-neutral">Level {{ mit.current_level }}</span></td>
