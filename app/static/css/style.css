@@ -149,12 +149,6 @@ a {
     border-radius: 24px;
     padding: 22px;
     box-shadow: 0 12px 32px rgba(0,0,0,0.20);
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 34px rgba(0,0,0,0.28);
 }
 
 .stat-card h3 {
@@ -246,13 +240,6 @@ a {
     background: rgba(239, 68, 68, 0.18);
     color: #fecaca;
     border: 1px solid rgba(239, 68, 68, 0.25);
-}
-
-.btn-sm {
-    padding: 9px 12px;
-    border-radius: 12px;
-    font-size: 13px;
-    font-weight: 700;
 }
 
 .empty-state {
@@ -608,6 +595,7 @@ a {
     font-weight: 700;
 }
 
+/* batch task board */
 .task-board-legend {
     display: flex;
     flex-wrap: wrap;
@@ -857,6 +845,7 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     display: none;
 }
 
+/* STS item page */
 .sts-row {
     align-items: flex-start;
 }
@@ -990,11 +979,78 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     gap: 14px;
 }
 
+@media (max-width: 980px) {
+    .task-row-top {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .task-status-badge {
+        align-self: flex-start;
+    }
+
+    .task-linked-box {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 920px) {
+    .app-shell {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+    }
+
+    .stats-grid,
+    .form-grid,
+    .dashboard-grid-2,
+    .quick-actions-grid,
+    .sts-task-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .page-header,
+    .track-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .lesson-nav {
+        grid-template-columns: 1fr;
+    }
+
+    .lesson-nav > div {
+        justify-self: stretch !important;
+    }
+
+    .lesson-nav .btn {
+        width: 100%;
+    }
+
+    .sts-actions {
+        min-width: 0;
+        justify-content: flex-start;
+    }
+
+    .task-level-summary {
+        padding: 18px;
+    }
+
+    .task-level-body {
+        padding: 0 18px 18px 18px;
+    }
+}
+
 .sts-task-submitted {
     background: rgba(245, 158, 11, 0.16);
     border: 1px solid rgba(245, 158, 11, 0.28);
     color: #fde68a;
 }
+/* --------------------------------------------------
+   MIT TASKS CLEANUP / PROFESSIONAL TIGHTENING
+-------------------------------------------------- */
 
 .page-header-tight {
     margin-bottom: 18px;
@@ -1130,10 +1186,19 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     outline: none;
 }
 
+.btn-sm {
+    padding: 9px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
 .empty-state-tight {
     padding: 22px;
     border-radius: 16px;
 }
+
+/* tighter task board */
 
 .task-level-dropdown-clean {
     border-radius: 18px;
@@ -1150,6 +1215,10 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
 
 .task-level-summary-clean p {
     font-size: 13px;
+}
+
+.task-level-body {
+    padding: 0 18px 18px 18px;
 }
 
 .task-checkbox-list-tight {
@@ -1195,6 +1264,10 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     font-size: 14px;
 }
 
+.task-manage-dropdown {
+    margin-top: 12px;
+}
+
 .task-manage-dropdown > summary {
     cursor: pointer;
     font-weight: 700;
@@ -1237,15 +1310,57 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     min-height: 40px;
 }
 
+@media (max-width: 980px) {
+    .task-item-card {
+        flex-direction: column;
+    }
+
+    .task-action-cluster,
+    .task-submit-form {
+        min-width: 0;
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .task-item-topline {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 920px) {
+    .task-section-card {
+        padding: 16px;
+    }
+
+    .task-level-summary-clean {
+        padding: 14px 16px;
+    }
+
+    .task-level-body {
+        padding: 0 16px 16px 16px;
+    }
+
+    .task-checkbox-row-clean {
+        padding: 12px;
+    }
+
+    .task-status-note {
+        margin-left: 0;
+    }
+
+    .task-linked-box-clean {
+        margin-left: 0;
+    }
+}
+/* Fix dashboard stat colors when cards are links */
 .dashboard-stat-link {
     text-decoration: none;
     color: inherit;
-    position: relative;
-    transition: transform 0.18s ease, box-shadow 0.18s ease, border 0.18s ease, background 0.18s ease;
 }
 
 .dashboard-stat-link h3 {
-    color: #e5e7eb;
+    color: #e5e7eb; /* original stat number color */
 }
 
 .dashboard-stat-link .stat-label {
@@ -1255,7 +1370,23 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
 .dashboard-stat-link .subtle {
     color: #94a3b8;
 }
+/* ===============================
+   MIT Dashboard Premium Cards
+================================ */
 
+.dashboard-stat-link {
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border 0.18s ease, background 0.18s ease;
+}
+
+/* stat number color fix */
+.dashboard-stat-link h3 {
+    color: #e5e7eb;
+}
+
+/* hover effect */
 .dashboard-stat-link:hover {
     transform: translateY(-4px);
     background: rgba(255,255,255,0.04);
@@ -1264,10 +1395,12 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
         0 0 0 1px rgba(255,255,255,0.08) inset;
 }
 
+/* click effect */
 .dashboard-stat-link:active {
     transform: translateY(-1px);
 }
 
+/* subtle glow on colored stat cards */
 .stat-card[style*="#22c55e"]:hover {
     box-shadow:
         0 12px 28px rgba(34,197,94,0.25),
@@ -1291,7 +1424,6 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
         0 12px 28px rgba(59,130,246,0.25),
         0 0 0 1px rgba(255,255,255,0.08) inset;
 }
-
 .recent-mit-row {
     align-items: center;
 }
@@ -1332,6 +1464,9 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     border-radius: 999px;
     background: linear-gradient(135deg, #ef4444, #f59e0b);
 }
+/* ===============================
+   DOUGHY + POLISH
+================================ */
 
 .doughy-banner {
     margin-bottom: 20px;
@@ -1368,6 +1503,8 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     font-size: 14px;
 }
 
+/* colored stat cards */
+
 .stat-success {
     border-left: 4px solid #22c55e;
 }
@@ -1384,6 +1521,17 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     border-left: 4px solid #3b82f6;
 }
 
+/* smoother cards */
+
+.card {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.28);
+}
+/* MIT LIST TABLE */
 .table-wrapper {
     overflow-x: auto;
 }
@@ -1410,6 +1558,7 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     background: rgba(255,255,255,0.03);
 }
 
+/* PILLS */
 .pill {
     padding: 6px 10px;
     border-radius: 999px;
@@ -1423,115 +1572,11 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
 .pill-info { background: rgba(59,130,246,0.15); color:#60a5fa; }
 .pill-muted { background: rgba(148,163,184,0.15); color:#cbd5e1; }
 .pill-neutral { background: rgba(255,255,255,0.08); color:#e5e7eb; }
-
+/* ===== MIT LIST HIGHLIGHTS ===== */
 .mit-row-overdue {
     background: rgba(239, 68, 68, 0.08);
 }
 
 .mit-row-overdue:hover {
     background: rgba(239, 68, 68, 0.16);
-}
-
-@media (max-width: 980px) {
-    .task-row-top {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .task-status-badge {
-        align-self: flex-start;
-    }
-
-    .task-linked-box {
-        margin-left: 0;
-    }
-
-    .task-item-card {
-        flex-direction: column;
-    }
-
-    .task-action-cluster,
-    .task-submit-form {
-        min-width: 0;
-        width: 100%;
-        justify-content: flex-start;
-    }
-
-    .task-item-topline {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-}
-
-@media (max-width: 920px) {
-    .app-shell {
-        flex-direction: column;
-    }
-
-    .sidebar {
-        width: 100%;
-    }
-
-    .stats-grid,
-    .form-grid,
-    .dashboard-grid-2,
-    .quick-actions-grid,
-    .sts-task-form-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .page-header,
-    .track-row {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .lesson-nav {
-        grid-template-columns: 1fr;
-    }
-
-    .lesson-nav > div {
-        justify-self: stretch !important;
-    }
-
-    .lesson-nav .btn {
-        width: 100%;
-    }
-
-    .sts-actions {
-        min-width: 0;
-        justify-content: flex-start;
-    }
-
-    .task-level-summary {
-        padding: 18px;
-    }
-
-    .task-level-body {
-        padding: 0 18px 18px 18px;
-    }
-
-    .task-section-card {
-        padding: 16px;
-    }
-
-    .task-level-summary-clean {
-        padding: 14px 16px;
-    }
-
-    .task-level-body {
-        padding: 0 16px 16px 16px;
-    }
-
-    .task-checkbox-row-clean {
-        padding: 12px;
-    }
-
-    .task-status-note {
-        margin-left: 0;
-    }
-
-    .task-linked-box-clean {
-        margin-left: 0;
-    }
 }

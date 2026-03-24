@@ -3,10 +3,10 @@
 {% block title %}MIT List{% endblock %}
 
 {% block content %}
-<div class="page-header database-page-header">
+<div class="page-header">
     <div>
         <p class="eyebrow">MIT STS</p>
-        <h2>MIT Records</h2>
+        <h2>All MITs</h2>
         <p class="subtle">Search, filter, and manage MIT development profiles.</p>
     </div>
 
@@ -16,28 +16,22 @@
 {% set message = doughy_message %}
 {% include "partials/doughy.html" %}
 
-<div class="card database-toolbar-card">
-    <div class="database-toolbar-header">
-        <div>
-            <h3>Filters</h3>
-            <p>Narrow the record set by name, store, level, coach, or task state.</p>
-        </div>
-        <div class="database-toolbar-count">
-            <span class="database-count-pill">{{ mits|length }}</span>
-            <span class="subtle">record{{ '' if mits|length == 1 else 's' }}</span>
-        </div>
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <h3>Search & Filters</h3>
+        <p>Find MITs fast by name, store, level, status, coach, or task state.</p>
     </div>
 
-    <form method="GET" action="{{ url_for('mit_sts.list_mits') }}" class="database-filter-grid">
-        <div class="form-group database-filter-search">
+    <form method="GET" action="{{ url_for('mit_sts.list_mits') }}" class="form-grid">
+        <div class="form-group">
             <label>Name Search</label>
-            <input type="text" name="q" value="{{ q or '' }}" placeholder="Search MIT name">
+            <input type="text" name="q" value="{{ q or '' }}" placeholder="Search by name">
         </div>
 
         <div class="form-group">
             <label>Store</label>
             <select name="store">
-                <option value="">All Stores</option>
+                <option value="">-- All Stores --</option>
                 {% for store in stores %}
                 <option value="{{ store }}" {% if selected_store == store %}selected{% endif %}>{{ store }}</option>
                 {% endfor %}
@@ -45,9 +39,9 @@
         </div>
 
         <div class="form-group">
-            <label>Level</label>
+            <label>Current Level</label>
             <select name="level">
-                <option value="">All Levels</option>
+                <option value="">-- All Levels --</option>
                 <option value="1" {% if selected_level == '1' %}selected{% endif %}>Level 1</option>
                 <option value="2" {% if selected_level == '2' %}selected{% endif %}>Level 2</option>
                 <option value="3" {% if selected_level == '3' %}selected{% endif %}>Level 3</option>
@@ -57,21 +51,21 @@
         <div class="form-group">
             <label>Status</label>
             <select name="status">
-                <option value="">All Statuses</option>
-                <option value="on_track" {% if selected_status == 'on_track' %}selected{% endif %}>On Track</option>
-                <option value="blocked" {% if selected_status == 'blocked' %}selected{% endif %}>Blocked</option>
-                <option value="ready" {% if selected_status == 'ready' %}selected{% endif %}>Ready</option>
-                <option value="promoted" {% if selected_status == 'promoted' %}selected{% endif %}>Promoted</option>
-                <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>Inactive</option>
+                <option value="">-- All Statuses --</option>
+                <option value="on_track">On Track</option>
+                <option value="blocked">Blocked</option>
+                <option value="ready">Ready</option>
+                <option value="promoted">Promoted</option>
+                <option value="inactive">Inactive</option>
             </select>
         </div>
 
         <div class="form-group">
             <label>Coach</label>
             <select name="coach">
-                <option value="">All Coaches</option>
+                <option value="">-- All Coaches --</option>
                 {% for coach in coaches %}
-                <option value="{{ coach.id }}" {% if selected_coach == coach.id|string %}selected{% endif %}>{{ coach.name }}</option>
+                <option value="{{ coach.id }}">{{ coach.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -79,31 +73,29 @@
         <div class="form-group">
             <label>Task Filter</label>
             <select name="task_filter">
-                <option value="">All Task States</option>
-                <option value="open" {% if selected_task_filter == 'open' %}selected{% endif %}>Has Open Tasks</option>
-                <option value="overdue" {% if selected_task_filter == 'overdue' %}selected{% endif %}>Has Overdue Tasks</option>
-                <option value="submitted" {% if selected_task_filter == 'submitted' %}selected{% endif %}>Has Submitted Tasks</option>
+                <option value="">-- All Task States --</option>
+                <option value="open">Has Open Tasks</option>
+                <option value="overdue">Has Overdue Tasks</option>
+                <option value="submitted">Has Submitted Tasks</option>
             </select>
         </div>
 
-        <div class="form-actions form-group-full database-filter-actions">
+        <div class="form-actions form-group-full">
             <button type="submit" class="btn btn-primary">Apply Filters</button>
             <a href="{{ url_for('mit_sts.list_mits') }}" class="btn btn-secondary">Clear</a>
         </div>
     </form>
 </div>
 
-<div class="card database-table-card">
-    <div class="database-table-header">
-        <div>
-            <h3>MIT Records</h3>
-            <p>Live training records across all MITs.</p>
-        </div>
+<div class="card">
+    <div class="card-header">
+        <h3>MIT Profiles</h3>
+        <p>{{ mits|length }} result{{ '' if mits|length == 1 else 's' }}</p>
     </div>
 
     {% if mits %}
-    <div class="table-wrapper database-table-wrapper">
-        <table class="data-table database-table">
+    <div class="table-wrapper">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Name</th>
@@ -115,80 +107,42 @@
                     <th>Overdue</th>
                     <th>Submitted</th>
                     <th>Status</th>
-                    <th class="database-actions-col">Actions</th>
+                    <th style="text-align: center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for mit in mits %}
                 {% set progress = progress_map.get(mit.id, 0) %}
                 {% set counts = task_counts_map.get(mit.id, {'open': 0, 'overdue': 0, 'submitted': 0}) %}
-                <tr class="database-row {% if counts.overdue > 0 %}mit-row-overdue{% endif %}">
-                    <td class="database-name-cell">
-                        <div class="database-name-stack">
-                            <strong>{{ mit.mit_user.name }}</strong>
-                            <span class="database-row-subtle">MIT Profile</span>
-                        </div>
-                    </td>
-
+                <tr class="{% if counts.overdue > 0 %}mit-row-overdue{% endif %}">
+                    <td><strong>{{ mit.mit_user.name }}</strong></td>
                     <td>{{ mit.store_number or 'Not set' }}</td>
-
-                    <td>
-                        <span class="pill pill-neutral">L{{ mit.current_level }}</span>
-                    </td>
-
+                    <td><span class="pill pill-neutral">Level {{ mit.current_level }}</span></td>
                     <td>{{ mit.coach_user.name if mit.coach_user else 'Unassigned' }}</td>
 
-                    <td class="database-progress-cell">
-                        <div class="database-progress-top">
-                            <span>{{ progress }}%</span>
-                            <span class="database-row-subtle">current level</span>
-                        </div>
-                        <div class="progress-bar database-progress-bar">
+                    <td>
+                        <div class="progress-bar">
                             <div class="progress-fill" style="width: {{ progress }}%;"></div>
                         </div>
                     </td>
 
-                    <td>
-                        <span class="pill {{ 'pill-warning' if counts.open else 'pill-muted' }}">{{ counts.open }}</span>
-                    </td>
+                    <td><span class="pill {{ 'pill-warning' if counts.open else 'pill-muted' }}">{{ counts.open }}</span></td>
+                    <td><span class="pill {{ 'pill-danger' if counts.overdue else 'pill-muted' }}">{{ counts.overdue }}</span></td>
+                    <td><span class="pill {{ 'pill-info' if counts.submitted else 'pill-muted' }}">{{ counts.submitted }}</span></td>
 
                     <td>
-                        <span class="pill {{ 'pill-danger' if counts.overdue else 'pill-muted' }}">{{ counts.overdue }}</span>
+                        <span class="pill pill-info">
+                            {{ mit.sts_status|replace('_',' ')|title }}
+                        </span>
                     </td>
 
-                    <td>
-                        <span class="pill {{ 'pill-info' if counts.submitted else 'pill-muted' }}">{{ counts.submitted }}</span>
-                    </td>
-
-                    <td>
-                        {% if mit.sts_status == "ready" %}
-                        <span class="pill pill-success">Ready</span>
-                        {% elif mit.sts_status == "blocked" %}
-                        <span class="pill pill-danger">Blocked</span>
-                        {% elif mit.sts_status == "promoted" %}
-                        <span class="pill pill-info">Promoted</span>
-                        {% elif mit.sts_status == "inactive" %}
-                        <span class="pill pill-muted">Inactive</span>
-                        {% else %}
-                        <span class="pill pill-warning">{{ mit.sts_status|replace('_',' ')|title }}</span>
-                        {% endif %}
-                    </td>
-
-                    <td class="database-actions-col">
-                        <div class="database-row-actions">
-                            <a class="btn btn-secondary btn-sm" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
-                            <a class="btn btn-secondary btn-sm" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit</a>
-                        </div>
+                    <td style="text-align:center;">
+                        <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-    </div>
-    {% else %}
-    <div class="empty-state database-empty-state">
-        <h3>No MIT records found</h3>
-        <p>Try adjusting the filters or create a new MIT profile.</p>
     </div>
     {% endif %}
 </div>
