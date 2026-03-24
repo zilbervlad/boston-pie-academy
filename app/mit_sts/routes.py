@@ -4,6 +4,8 @@ from io import BytesIO
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
+from sqlalchemy import func, case, and_
+from sqlalchemy.orm import joinedload
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
@@ -199,6 +201,139 @@ def get_mit_task_counts(mit_profile_id):
     }
 
 
+def get_task_counts_map_for_mits(mit_ids):
+    if not mit_ids:
+        return {}
+
+    today = date.today()
+
+    rows = db.session.query(
+        MITTask.mit_profile_id,
+        func.sum(
+            case(
+                (MITTask.status.notin_(["verified", "cancelled"]), 1),
+                else_=0,
+            )
+        ).label("open_count"),
+        func.sum(
+            case(
+                (
+                    and_(
+                        MITTask.status.notin_(["verified", "cancelled", "submitted"]),
+                        MITTask.due_date.isnot(None),
+                        MITTask.due_date < today,
+                    ),
+                    1,
+                ),
+                else_=0,
+            )
+        ).label("overdue_count"),
+        func.sum(
+            case(
+                (MITTask.status == "submitted", 1),
+                else_=0,
+            )
+        ).label("submitted_count"),
+    ).filter(
+        MITTask.mit_profile_id.in_(mit_ids)
+    ).group_by(MITTask.mit_profile_id).all()
+
+    counts_map = {
+        mit_id: {
+            "open": int(open_count or 0),
+            "overdue": int(overdue_count or 0),
+            "submitted": int(submitted_count or 0),
+        }
+        for mit_id, open_count, overdue_count, submitted_count in rows
+    }
+
+    for mit_id in mit_ids:
+        counts_map.setdefault(mit_id, {"open": 0, "overdue": 0, "submitted": 0})
+
+    return counts_map
+
+
+def get_required_template_totals_by_level():
+    rows = db.session.query(
+        MITLevelTemplate.level_number,
+        func.count(MITLevelTemplate.id)
+    ).filter(
+        MITLevelTemplate.is_required.is_(True)
+    ).group_by(MITLevelTemplate.level_number).all()
+
+    return {level_number: int(total or 0) for level_number, total in rows}
+
+
+def get_current_level_progress_map(mits):
+    if not mits:
+        return {}
+
+    mit_ids = [mit.id for mit in mits]
+    totals_by_level = get_required_template_totals_by_level()
+
+    completed_rows = db.session.query(
+        MITLevelProgress.mit_profile_id,
+        MITLevelTemplate.level_number,
+        func.count(MITLevelProgress.id)
+    ).join(
+        MITLevelTemplate,
+        MITLevelProgress.template_item_id == MITLevelTemplate.id
+    ).filter(
+        MITLevelProgress.mit_profile_id.in_(mit_ids),
+        MITLevelTemplate.is_required.is_(True),
+        MITLevelProgress.status == "complete",
+    ).group_by(
+        MITLevelProgress.mit_profile_id,
+        MITLevelTemplate.level_number
+    ).all()
+
+    completed_map = {
+        (mit_profile_id, level_number): int(completed_count or 0)
+        for mit_profile_id, level_number, completed_count in completed_rows
+    }
+
+    progress_map = {}
+    for mit in mits:
+        total = totals_by_level.get(mit.current_level, 0)
+        if total == 0:
+            progress_map[mit.id] = 0
+        else:
+            completed = completed_map.get((mit.id, mit.current_level), 0)
+            progress_map[mit.id] = round((completed / total) * 100)
+
+    return progress_map
+
+
+def refresh_mit_statuses_from_maps(mits, current_level_progress_map, task_counts_map):
+    changed = False
+
+    for mit in mits:
+        if mit.sts_status == "blocked":
+            continue
+
+        current_level_progress = current_level_progress_map.get(mit.id, 0)
+        task_counts = task_counts_map.get(mit.id, {"open": 0, "overdue": 0, "submitted": 0})
+
+        is_ready = (
+            current_level_progress == 100
+            and task_counts["open"] == 0
+            and task_counts["overdue"] == 0
+            and task_counts["submitted"] == 0
+        )
+
+        new_status = mit.sts_status
+        if is_ready:
+            new_status = "ready"
+        elif mit.sts_status in ["ready", "promoted"]:
+            new_status = "on_track"
+
+        if new_status != mit.sts_status:
+            mit.sts_status = new_status
+            changed = True
+
+    return changed
+
+
 def is_mit_ready_for_promotion(mit):
     current_level_progress = calculate_level_progress(mit.id, mit.current_level)
     task_counts = get_mit_task_counts(mit.id)
@@ -352,41 +487,34 @@ def dashboard():
     if not is_leadership():
         return redirect(url_for("mit_sts.my_mit"))
 
-    mits = MITProfile.query.order_by(MITProfile.created_at.desc()).all()
+    mits = MITProfile.query.options(
+        joinedload(MITProfile.mit_user),
+        joinedload(MITProfile.coach_user),
+    ).order_by(MITProfile.created_at.desc()).all()
+
+    mit_ids = [mit.id for mit in mits]
+    current_level_progress_map = get_current_level_progress_map(mits)
+    task_counts_map = get_task_counts_map_for_mits(mit_ids)
+
+    changed = refresh_mit_statuses_from_maps(mits, current_level_progress_map, task_counts_map)
+    if changed:
+        db.session.commit()
 
     total_mits = len(mits)
     level_1_count = sum(1 for mit in mits if mit.current_level == 1)
     level_2_count = sum(1 for mit in mits if mit.current_level == 2)
     level_3_count = sum(1 for mit in mits if mit.current_level == 3)
 
-    ready_count = 0
-    blocked_count = 0
-    overdue_tasks_count = 0
-    submitted_tasks_count = 0
+    ready_count = sum(1 for mit in mits if mit.sts_status == "ready")
+    blocked_count = sum(1 for mit in mits if mit.sts_status == "blocked")
+    overdue_tasks_count = sum(counts["overdue"] for counts in task_counts_map.values())
+    submitted_tasks_count = sum(counts["submitted"] for counts in task_counts_map.values())
 
     recent_mits = mits[:5]
-
-    for mit in mits:
-        refresh_mit_status(mit)
-        if mit.sts_status == "ready":
-            ready_count += 1
-        if mit.sts_status == "blocked":
-            blocked_count += 1
-
-    all_tasks = MITTask.query.all()
-    for task in all_tasks:
-        display_status = task_display_status(task)
-        if display_status == "overdue":
-            overdue_tasks_count += 1
-        if task.status == "submitted":
-            submitted_tasks_count += 1
-
     recent_progress_map = {
-        mit.id: calculate_level_progress(mit.id, mit.current_level)
+        mit.id: current_level_progress_map.get(mit.id, 0)
         for mit in recent_mits
     }
-
-    db.session.commit()
 
     return render_template(
         "mit_sts/dashboard.html",
@@ -497,7 +625,10 @@ def list_mits():
     coach = request.args.get("coach", "").strip()
     task_filter = request.args.get("task_filter", "").strip()
 
-    query = MITProfile.query.join(User, MITProfile.user_id == User.id)
+    query = MITProfile.query.options(
+        joinedload(MITProfile.mit_user),
+        joinedload(MITProfile.coach_user),
+    ).join(User, MITProfile.user_id == User.id)
 
     if q:
         query = query.filter(User.name.ilike(f"%{q}%"))
@@ -521,14 +652,16 @@ def list_mits():
             pass
 
     mits = query.order_by(User.name.asc()).all()
+    mit_ids = [mit.id for mit in mits]
+
+    task_counts_map = get_task_counts_map_for_mits(mit_ids)
+    current_level_progress_map = get_current_level_progress_map(mits)
+
+    changed = refresh_mit_statuses_from_maps(mits, current_level_progress_map, task_counts_map)
 
     filtered_mits = []
-    task_counts_map = {}
-
     for mit in mits:
-        refresh_mit_status(mit)
-        counts = get_mit_task_counts(mit.id)
-        task_counts_map[mit.id] = counts
+        counts = task_counts_map.get(mit.id, {"open": 0, "overdue": 0, "submitted": 0})
 
         include = True
         if task_filter == "open" and counts["open"] == 0:
@@ -541,7 +674,9 @@ def list_mits():
         if include:
             filtered_mits.append(mit)
 
-    db.session.commit()
+    if changed:
+        db.session.commit()
+
     mits = filtered_mits
 
     stores = [
@@ -558,7 +693,7 @@ def list_mits():
     ).order_by(User.name.asc()).all()
 
     progress_map = {
-        mit.id: calculate_level_progress(mit.id, mit.current_level)
+        mit.id: current_level_progress_map.get(mit.id, 0)
         for mit in mits
     }
 
@@ -834,7 +969,7 @@ def export_tasks_pdf(mit_id):
         leftMargin=0.5 * inch,
         topMargin=0.5 * inch,
         bottomMargin=0.5 * inch,
-        title=f"{mit.mit_user.name} - MIT Task Sheet",
+        title=f"mit_{mit.mit_user.name.strip().replace(' ', '_').lower()}_tasks.pdf",
         author="Boston Pie Academy",
     )
 
@@ -984,7 +1119,10 @@ def view_level(mit_id, level_number):
         flash("Invalid level.", "danger")
         return redirect(url_for("academy.dashboard"))
 
-    mit = MITProfile.query.get_or_404(mit_id)
+    mit = MITProfile.query.options(
+        joinedload(MITProfile.mit_user),
+        joinedload(MITProfile.coach_user),
+    ).get_or_404(mit_id)
 
     if not can_view_mit(mit):
         flash("You do not have permission to view that MIT level.", "danger")
@@ -1007,12 +1145,14 @@ def view_level(mit_id, level_number):
     for template in templates:
         grouped_items[template.category or "General"].append(template)
 
-    active_task_map = {}
-    for task in MITTask.query.filter(
+    active_tasks = MITTask.query.filter(
         MITTask.mit_profile_id == mit.id,
         MITTask.related_template_item_id.isnot(None),
         MITTask.status.in_(["open", "in_progress", "submitted"])
-    ).order_by(MITTask.created_at.desc()).all():
+    ).order_by(MITTask.created_at.desc()).all()
+
+    active_task_map = {}
+    for task in active_tasks:
         if task.related_template_item_id not in active_task_map:
             active_task_map[task.related_template_item_id] = task
 
