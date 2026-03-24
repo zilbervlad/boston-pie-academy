@@ -20,15 +20,20 @@
     </div>
 </div>
 
-<div class="doughy-banner">
-    <div class="doughy-left">
-        <div class="doughy-avatar">🍕</div>
-        <div>
-            <strong>Doughy says:</strong>
-            <p>Focus on verified execution, not just checking boxes. Complete the work, then close the loop.</p>
-        </div>
-    </div>
-</div>
+{% set total_items = grouped_items.values() | map('length') | sum %}
+{% set active_linked_count = active_task_map | length %}
+{% if is_complete %}
+    {% set message = "Level " ~ level_number ~ " is complete. Nice work." %}
+{% elif level_progress >= 80 %}
+    {% set message = "Level " ~ level_number ~ " is at " ~ level_progress ~ "%. Almost there." %}
+{% elif active_linked_count > 0 %}
+    {% set message = active_linked_count ~ " linked task" ~ ("s are" if active_linked_count != 1 else " is") ~ " active on this level." %}
+{% elif total_items > 0 %}
+    {% set message = total_items ~ " STS item" ~ ("s" if total_items != 1 else "") ~ " on this level. Start with the biggest blockers first." %}
+{% else %}
+    {% set message = "No STS items are seeded for this level yet." %}
+{% endif %}
+{% include "partials/doughy.html" %}
 
 <div class="card" style="margin-bottom: 20px;">
     <div class="card-header">

@@ -17,16 +17,18 @@
     </div>
 </div>
 
-<!-- DOUGHY BANNER -->
-<div class="doughy-banner">
-    <div class="doughy-left">
-        <div class="doughy-avatar">🍕</div>
-        <div>
-            <strong>Doughy says:</strong>
-            <p>Review overdue tasks before promotions. Keep your MIT pipeline moving.</p>
-        </div>
-    </div>
-</div>
+{% if overdue_tasks_count > 0 %}
+    {% set message = "You have " ~ overdue_tasks_count ~ " overdue task" ~ ("s" if overdue_tasks_count != 1 else "") ~ ". Start there first." %}
+{% elif submitted_tasks_count > 0 %}
+    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting for review." %}
+{% elif ready_count > 0 %}
+    {% set message = ready_count ~ " MIT" ~ ("s are" if ready_count != 1 else " is") ~ " ready for promotion. Nice." %}
+{% elif blocked_count > 0 %}
+    {% set message = blocked_count ~ " MIT" ~ ("s are" if blocked_count != 1 else " is") ~ " blocked. Coaching check-in time." %}
+{% else %}
+    {% set message = "Everything looks clean right now. Keep the pipeline moving." %}
+{% endif %}
+{% include "partials/doughy.html" %}
 
 <div class="stats-grid" style="grid-template-columns: repeat(4, minmax(220px, 1fr));">
     <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits') }}">
@@ -72,14 +74,14 @@
     </a>
 
     <a class="card stat-card dashboard-stat-link stat-info" href="{{ url_for('mit_sts.list_mits', task_filter='submitted') }}">
-        <div class="stat-label">Submitted</div>
+        <div class="stat-label">Submitted Tasks</div>
         <h3>{{ submitted_tasks_count }}</h3>
-        <p class="subtle">Waiting review</p>
+        <p class="subtle">Waiting on review</p>
     </a>
 </div>
 
 <div class="card">
-    <div class="card-header">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
         <div>
             <h3>Recent MIT Profiles</h3>
             <p>Quick access to the most recently created MITs.</p>
@@ -120,6 +122,7 @@
                     {{ mit.sts_status.replace('_', ' ')|title }}
                 </span>
                 <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
+                <a class="btn btn-secondary" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit</a>
             </div>
         </div>
         {% endfor %}
@@ -127,7 +130,7 @@
     {% else %}
     <div class="empty-state">
         <h3>No MIT profiles yet</h3>
-        <p>Doughy is waiting… create your first MIT.</p>
+        <p>Doughy is waiting — create your first MIT profile.</p>
     </div>
     {% endif %}
 </div>
