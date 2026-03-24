@@ -39,10 +39,15 @@
 
 {% set total_items = grouped_template_items.values() | map('length') | sum %}
 {% set active_count = active_task_map | length %}
-{% if active_count > 0 %}
-    {% set message = active_count ~ " task" ~ ("s are" if active_count != 1 else " is") ~ " already active. Avoid piling on too much at once." %}
+
+{% if active_count >= 5 %}
+    {% set message = mit.mit_user.name ~ " already has " ~ active_count ~ " active tasks. Close or review some work before assigning more." %}
+{% elif active_count >= 3 %}
+    {% set message = mit.mit_user.name ~ " has " ~ active_count ~ " active tasks right now. Keep new assignments tight and focused." %}
+{% elif active_count > 0 %}
+    {% set message = active_count ~ " task" ~ ("s are" if active_count != 1 else " is") ~ " already active. Add only what " ~ mit.mit_user.name ~ " can realistically finish next." %}
 {% elif total_items > 0 %}
-    {% set message = total_items ~ " STS item" ~ ("s are" if total_items != 1 else " is") ~ " available to assign. Set clear due dates and priority." %}
+    {% set message = total_items ~ " STS item" ~ ("s are" if total_items != 1 else " is") ~ " available to assign. Start with 1 or 2 high-value tasks, not everything at once." %}
 {% else %}
     {% set message = "No STS items are loaded yet. Add templates first." %}
 {% endif %}
