@@ -33,7 +33,7 @@
         {% if can_manage_templates %}
         <a href="{{ url_for('mit_sts.template_library') }}" class="btn btn-secondary">Edit STS Items</a>
         {% endif %}
-       href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}"
+        <a href="{{ url_for('mit_sts.view_tasks', mit_id=mit.id) }}" class="btn btn-secondary">Back</a>
     </div>
 </div>
 
