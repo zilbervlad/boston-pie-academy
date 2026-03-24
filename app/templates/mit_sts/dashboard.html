@@ -17,6 +17,17 @@
     </div>
 </div>
 
+<!-- DOUGHY BANNER -->
+<div class="doughy-banner">
+    <div class="doughy-left">
+        <div class="doughy-avatar">🍕</div>
+        <div>
+            <strong>Doughy says:</strong>
+            <p>Review overdue tasks before promotions. Keep your MIT pipeline moving.</p>
+        </div>
+    </div>
+</div>
+
 <div class="stats-grid" style="grid-template-columns: repeat(4, minmax(220px, 1fr));">
     <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits') }}">
         <div class="stat-label">Total MITs</div>
@@ -42,33 +53,33 @@
         <p class="subtle">View Level 3 MITs</p>
     </a>
 
-    <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits', status='ready') }}" style="border-left: 4px solid #22c55e;">
+    <a class="card stat-card dashboard-stat-link stat-success" href="{{ url_for('mit_sts.list_mits', status='ready') }}">
         <div class="stat-label">Ready</div>
         <h3>{{ ready_count }}</h3>
-        <p class="subtle">Open ready MITs</p>
+        <p class="subtle">Ready for promotion</p>
     </a>
 
-    <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits', status='blocked') }}" style="border-left: 4px solid #ef4444;">
+    <a class="card stat-card dashboard-stat-link stat-danger" href="{{ url_for('mit_sts.list_mits', status='blocked') }}">
         <div class="stat-label">Blocked</div>
         <h3>{{ blocked_count }}</h3>
-        <p class="subtle">Open blocked MITs</p>
+        <p class="subtle">Needs attention</p>
     </a>
 
-    <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits', task_filter='overdue') }}" style="border-left: 4px solid #f59e0b;">
+    <a class="card stat-card dashboard-stat-link stat-warning" href="{{ url_for('mit_sts.list_mits', task_filter='overdue') }}">
         <div class="stat-label">Overdue Tasks</div>
         <h3>{{ overdue_tasks_count }}</h3>
-        <p class="subtle">Open MITs with overdue work</p>
+        <p class="subtle">Take action now</p>
     </a>
 
-    <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits', task_filter='submitted') }}" style="border-left: 4px solid #3b82f6;">
-        <div class="stat-label">Submitted Tasks</div>
+    <a class="card stat-card dashboard-stat-link stat-info" href="{{ url_for('mit_sts.list_mits', task_filter='submitted') }}">
+        <div class="stat-label">Submitted</div>
         <h3>{{ submitted_tasks_count }}</h3>
-        <p class="subtle">Open MITs waiting on review</p>
+        <p class="subtle">Waiting review</p>
     </a>
 </div>
 
 <div class="card">
-    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+    <div class="card-header">
         <div>
             <h3>Recent MIT Profiles</h3>
             <p>Quick access to the most recently created MITs.</p>
@@ -95,7 +106,7 @@
 
                 <div class="recent-mit-progress-wrap">
                     <div class="recent-mit-progress-meta">
-                        <span>Level {{ mit.current_level }} Progress</span>
+                        <span>Progress</span>
                         <span>{{ level_progress }}%</span>
                     </div>
                     <div class="recent-mit-progress-bar">
@@ -109,7 +120,6 @@
                     {{ mit.sts_status.replace('_', ' ')|title }}
                 </span>
                 <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
-                <a class="btn btn-secondary" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit</a>
             </div>
         </div>
         {% endfor %}
@@ -117,7 +127,7 @@
     {% else %}
     <div class="empty-state">
         <h3>No MIT profiles yet</h3>
-        <p>Create your first MIT profile to start tracking progress.</p>
+        <p>Doughy is waiting… create your first MIT.</p>
     </div>
     {% endif %}
 </div>

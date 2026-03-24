@@ -1464,3 +1464,70 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
     border-radius: 999px;
     background: linear-gradient(135deg, #ef4444, #f59e0b);
 }
+/* ===============================
+   DOUGHY + POLISH
+================================ */
+
+.doughy-banner {
+    margin-bottom: 20px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(245,158,11,0.12));
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.doughy-banner.small {
+    padding: 14px;
+}
+
+.doughy-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.doughy-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ef4444, #f59e0b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+}
+
+.doughy-banner p {
+    margin: 4px 0 0;
+    color: #e2e8f0;
+    font-size: 14px;
+}
+
+/* colored stat cards */
+
+.stat-success {
+    border-left: 4px solid #22c55e;
+}
+
+.stat-danger {
+    border-left: 4px solid #ef4444;
+}
+
+.stat-warning {
+    border-left: 4px solid #f59e0b;
+}
+
+.stat-info {
+    border-left: 4px solid #3b82f6;
+}
+
+/* smoother cards */
+
+.card {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.28);
+}
