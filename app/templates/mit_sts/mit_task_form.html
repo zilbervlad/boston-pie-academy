@@ -33,7 +33,7 @@
         {% if can_manage_templates %}
         <a href="{{ url_for('mit_sts.template_library') }}" class="btn btn-secondary">Edit STS Items</a>
         {% endif %}
-        <a href="{{ url_for('mit_sts.view_tasks', mit_id=mit.id) }}" class="btn btn-secondary">Back</a>
+        <a href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}" class="btn btn-secondary">Back</a>
     </div>
 </div>
 
@@ -52,6 +52,33 @@
     {% set message = "No STS items are loaded yet. Add templates first." %}
 {% endif %}
 {% include "partials/doughy.html" %}
+
+<div class="card" style="margin-bottom: 18px;">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+        <div>
+            <h3 style="margin:0;">Assignment Summary</h3>
+            <p style="margin:6px 0 0;">Use this board to assign focused work by level.</p>
+        </div>
+        <div class="badge">
+            {{ active_count }} Active Task{{ '' if active_count == 1 else 's' }}
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap:14px;">
+        <div class="task-summary-mini">
+            <div class="stat-label">MIT</div>
+            <div style="margin-top:6px; font-weight:700;">{{ mit.mit_user.name }}</div>
+        </div>
+        <div class="task-summary-mini">
+            <div class="stat-label">Store</div>
+            <div style="margin-top:6px; font-weight:700;">{{ mit.store_number or 'Not set' }}</div>
+        </div>
+        <div class="task-summary-mini">
+            <div class="stat-label">Available STS Items</div>
+            <div style="margin-top:6px; font-weight:700;">{{ total_items }}</div>
+        </div>
+    </div>
+</div>
 
 <div class="task-board-stack">
     {% for level_number, items in grouped_template_items.items() %}
@@ -79,15 +106,16 @@
                         {% elif is_in_progress %} task-in-progress
                         {% endif %}
                     ">
-                        <div class="task-row-top">
+                        <div class="task-row-top" style="margin-bottom:8px;">
                             <div class="task-checkbox-main">
                                 <span class="task-checkbox-fakebox"></span>
                                 <div>
                                     <div class="task-checkbox-text">{{ item.item_name }}</div>
 
-                                    {% if item.category %}
-                                    <div class="task-item-mini-meta">Category: {{ item.category }}</div>
-                                    {% endif %}
+                                    <div class="task-item-mini-meta">
+                                        Level {{ level_number }}
+                                        {% if item.category %} • {{ item.category }}{% endif %}
+                                    </div>
 
                                     {% if item.item_description %}
                                     <div class="task-item-description">{{ item.item_description }}</div>
