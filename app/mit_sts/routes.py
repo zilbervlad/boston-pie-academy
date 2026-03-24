@@ -562,6 +562,19 @@ def list_mits():
         for mit in mits
     }
 
+    total_overdue = sum(v.get("overdue", 0) for v in task_counts_map.values())
+    total_open = sum(v.get("open", 0) for v in task_counts_map.values())
+    total_submitted = sum(v.get("submitted", 0) for v in task_counts_map.values())
+
+    if total_overdue > 0:
+        doughy_message = f"You have {total_overdue} overdue task{'s' if total_overdue != 1 else ''}. Start there first."
+    elif total_submitted > 0:
+        doughy_message = f"{total_submitted} task{'s' if total_submitted != 1 else ''} {'are' if total_submitted != 1 else 'is'} waiting for review."
+    elif total_open > 0:
+        doughy_message = f"{total_open} open task{'s' if total_open != 1 else ''} in progress — keep it moving."
+    else:
+        doughy_message = "All MIT tasks are clean. Time to assign new work."
+
     return render_template(
         "mit_sts/mit_list.html",
         mits=mits,
@@ -575,6 +588,7 @@ def list_mits():
         selected_status=status,
         selected_coach=coach,
         selected_task_filter=task_filter,
+        doughy_message=doughy_message,
         user=current_user,
     )
 

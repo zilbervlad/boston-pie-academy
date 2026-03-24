@@ -13,7 +13,8 @@
     <a class="btn btn-primary" href="{{ url_for('mit_sts.new_mit') }}">+ New MIT</a>
 </div>
 
-{% include "partials/doughy.html" with message="Watch overdue work and submitted tasks first. That’s where coaching momentum is won or lost." %}
+{% set message = doughy_message %}
+{% include "partials/doughy.html" %}
 
 <div class="card" style="margin-bottom: 24px;">
     <div class="card-header">
