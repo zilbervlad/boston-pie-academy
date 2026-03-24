@@ -18,16 +18,20 @@
     </div>
 </div>
 
-<!-- DOUGHY PANEL -->
-<div class="doughy-banner small">
-    <div class="doughy-left">
-        <div class="doughy-avatar">🍕</div>
-        <div>
-            <strong>Doughy tip:</strong>
-            <p>Focus on finishing current level tasks before pushing promotion.</p>
-        </div>
-    </div>
-</div>
+{% if overdue_tasks_count > 0 %}
+    {% set message = overdue_tasks_count ~ " overdue task" ~ ("s" if overdue_tasks_count != 1 else "") ~ ". Clear those before pushing promotion." %}
+{% elif submitted_tasks_count > 0 %}
+    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting for review." %}
+{% elif open_tasks_count > 0 %}
+    {% set message = open_tasks_count ~ " open task" ~ ("s are" if open_tasks_count != 1 else " is") ~ " still in motion. Finish the current level strong." %}
+{% elif mit.sts_status == "ready" %}
+    {% set message = "This MIT looks ready. Time to review for promotion." %}
+{% elif overall_progress >= 80 %}
+    {% set message = "Progress is at " ~ overall_progress ~ "%. Almost there." %}
+{% else %}
+    {% set message = "Focus on finishing current level tasks before pushing promotion." %}
+{% endif %}
+{% include "partials/doughy.html" %}
 
 <div class="stats-grid">
     <div class="card stat-card">
