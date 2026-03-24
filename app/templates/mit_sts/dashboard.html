@@ -17,16 +17,25 @@
     </div>
 </div>
 
+{% set recent_mit = recent_mits[0] if recent_mits else None %}
+{% set recent_progress = recent_progress_map.get(recent_mit.id, 0) if recent_mit else 0 %}
+
 {% if overdue_tasks_count > 0 %}
     {% set message = "You have " ~ overdue_tasks_count ~ " overdue task" ~ ("s" if overdue_tasks_count != 1 else "") ~ ". Start there first." %}
 {% elif submitted_tasks_count > 0 %}
-    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting for review." %}
+    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting for review right now." %}
 {% elif ready_count > 0 %}
-    {% set message = ready_count ~ " MIT" ~ ("s are" if ready_count != 1 else " is") ~ " ready for promotion. Nice." %}
+    {% set message = ready_count ~ " MIT" ~ ("s are" if ready_count != 1 else " is") ~ " ready for promotion review." %}
 {% elif blocked_count > 0 %}
-    {% set message = blocked_count ~ " MIT" ~ ("s are" if blocked_count != 1 else " is") ~ " blocked. Coaching check-in time." %}
+    {% set message = blocked_count ~ " MIT" ~ ("s are" if blocked_count != 1 else " is") ~ " blocked. That needs leadership attention." %}
+{% elif total_mits == 0 %}
+    {% set message = "No MITs are in the pipeline yet. Build the first profile and get training moving." %}
+{% elif total_mits == 1 and recent_mit %}
+    {% set message = "You have 1 active MIT — " ~ recent_mit.mit_user.name ~ " is currently at " ~ recent_progress ~ "% on Level " ~ recent_mit.current_level ~ "." %}
+{% elif total_mits > 0 and level_1_count == total_mits %}
+    {% set message = "All active MITs are still in Level 1. Focus on building consistency before pushing promotions." %}
 {% else %}
-    {% set message = "Everything looks clean right now. Keep the pipeline moving." %}
+    {% set message = total_mits ~ " MIT" ~ ("s are" if total_mits != 1 else " is") ~ " active in the pipeline. No urgent blockers right now." %}
 {% endif %}
 {% include "partials/doughy.html" %}
 
