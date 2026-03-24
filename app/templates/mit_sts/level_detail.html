@@ -20,6 +20,16 @@
     </div>
 </div>
 
+<div class="doughy-banner">
+    <div class="doughy-left">
+        <div class="doughy-avatar">🍕</div>
+        <div>
+            <strong>Doughy says:</strong>
+            <p>Focus on verified execution, not just checking boxes. Complete the work, then close the loop.</p>
+        </div>
+    </div>
+</div>
+
 <div class="card" style="margin-bottom: 20px;">
     <div class="card-header">
         <h3>Level {{ level_number }} Progress</h3>
@@ -55,6 +65,8 @@
                             {% else %}
                                 <span class="sts-status-badge sts-not-started">Not Started</span>
                             {% endif %}
+                        {% else %}
+                            <span class="sts-status-badge sts-not-started">Not Started</span>
                         {% endif %}
                     </div>
 
