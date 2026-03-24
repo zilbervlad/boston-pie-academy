@@ -1580,3 +1580,52 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
 .mit-row-overdue:hover {
     background: rgba(239, 68, 68, 0.16);
 }
+/* ===============================
+   MIT LIST — DATABASE TIGHTENING (SAFE)
+================================ */
+
+.data-table th,
+.data-table td {
+    padding: 10px 14px; /* tighter rows */
+}
+
+.data-table th {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+}
+
+.data-table tbody tr {
+    transition: background 0.15s ease;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(255,255,255,0.04);
+}
+
+.data-table strong {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+/* progress tighter */
+.progress-bar {
+    height: 6px;
+    margin-top: 6px;
+}
+
+/* pills more minimal */
+.pill {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* reduce card padding just for table container */
+.card .data-table {
+    font-size: 14px;
+}
+
+/* subtle row spacing feel */
+.data-table td {
+    vertical-align: middle;
+}
