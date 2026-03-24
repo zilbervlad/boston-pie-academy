@@ -1629,3 +1629,60 @@ details.task-manage-dropdown > summary::-webkit-details-marker {
 .data-table td {
     vertical-align: middle;
 }
+/* ===============================
+   MIT LIST — DATABASE POLISH (SAFE)
+================================ */
+
+.data-table {
+    min-width: 1080px;
+}
+
+.data-table th,
+.data-table td {
+    padding: 10px 14px;
+    vertical-align: middle;
+}
+
+.data-table th {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+    font-weight: 700;
+}
+
+.data-table tbody tr {
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(255,255,255,0.04);
+}
+
+.data-table strong {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.progress-bar {
+    height: 6px;
+    margin-top: 6px;
+}
+
+.pill {
+    padding: 4px 8px;
+    font-size: 11px;
+    min-width: 28px;
+    text-align: center;
+}
+
+.card .data-table {
+    font-size: 14px;
+}
+
+.doughy-banner {
+    border-radius: 16px;
+}
+
+.card {
+    border-radius: 20px;
+}
