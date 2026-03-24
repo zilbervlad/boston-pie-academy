@@ -59,11 +59,11 @@
             <label>Status</label>
             <select name="status">
                 <option value="">-- All Statuses --</option>
-                <option value="on_track" {% if selected_status == 'on_track' %}selected{% endif %}>On Track</option>
-                <option value="blocked" {% if selected_status == 'blocked' %}selected{% endif %}>Blocked</option>
-                <option value="ready" {% if selected_status == 'ready' %}selected{% endif %}>Ready</option>
-                <option value="promoted" {% if selected_status == 'promoted' %}selected{% endif %}>Promoted</option>
-                <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>Inactive</option>
+                <option value="on_track">On Track</option>
+                <option value="blocked">Blocked</option>
+                <option value="ready">Ready</option>
+                <option value="promoted">Promoted</option>
+                <option value="inactive">Inactive</option>
             </select>
         </div>
 
@@ -72,7 +72,7 @@
             <select name="coach">
                 <option value="">-- All Coaches --</option>
                 {% for coach in coaches %}
-                <option value="{{ coach.id }}" {% if selected_coach == coach.id|string %}selected{% endif %}>{{ coach.name }}</option>
+                <option value="{{ coach.id }}">{{ coach.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -81,9 +81,9 @@
             <label>Task Filter</label>
             <select name="task_filter">
                 <option value="">-- All Task States --</option>
-                <option value="open" {% if selected_task_filter == 'open' %}selected{% endif %}>Has Open Tasks</option>
-                <option value="overdue" {% if selected_task_filter == 'overdue' %}selected{% endif %}>Has Overdue Tasks</option>
-                <option value="submitted" {% if selected_task_filter == 'submitted' %}selected{% endif %}>Has Submitted Tasks</option>
+                <option value="open">Has Open Tasks</option>
+                <option value="overdue">Has Overdue Tasks</option>
+                <option value="submitted">Has Submitted Tasks</option>
             </select>
         </div>
 
@@ -101,7 +101,7 @@
     </div>
 
     {% if mits %}
-    <div style="overflow-x: auto;">
+    <div class="table-wrapper">
         <table class="data-table">
             <thead>
                 <tr>
@@ -122,159 +122,35 @@
                 {% set progress = progress_map.get(mit.id, 0) %}
                 {% set counts = task_counts_map.get(mit.id, {'open': 0, 'overdue': 0, 'submitted': 0}) %}
                 <tr>
-                    <td>
-                        <div style="font-weight: 700;">{{ mit.mit_user.name }}</div>
-                    </td>
-
+                    <td><strong>{{ mit.mit_user.name }}</strong></td>
                     <td>{{ mit.store_number or 'Not set' }}</td>
-
-                    <td>
-                        <span class="pill pill-neutral">Level {{ mit.current_level }}</span>
-                    </td>
-
+                    <td><span class="pill pill-neutral">Level {{ mit.current_level }}</span></td>
                     <td>{{ mit.coach_user.name if mit.coach_user else 'Unassigned' }}</td>
 
-                    <td style="min-width: 220px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <span style="font-weight: 600;">{{ progress }}%</span>
-                            <span class="subtle" style="font-size: 12px;">Current level</span>
-                        </div>
-                        <div class="progress-bar" style="margin: 0;">
+                    <td>
+                        <div class="progress-bar">
                             <div class="progress-fill" style="width: {{ progress }}%;"></div>
                         </div>
                     </td>
 
-                    <td>
-                        {% if counts.open > 0 %}
-                        <span class="pill pill-warning">{{ counts.open }}</span>
-                        {% else %}
-                        <span class="pill pill-muted">0</span>
-                        {% endif %}
-                    </td>
+                    <td><span class="pill {{ 'pill-warning' if counts.open else 'pill-muted' }}">{{ counts.open }}</span></td>
+                    <td><span class="pill {{ 'pill-danger' if counts.overdue else 'pill-muted' }}">{{ counts.overdue }}</span></td>
+                    <td><span class="pill {{ 'pill-info' if counts.submitted else 'pill-muted' }}">{{ counts.submitted }}</span></td>
 
                     <td>
-                        {% if counts.overdue > 0 %}
-                        <span class="pill pill-danger">{{ counts.overdue }}</span>
-                        {% else %}
-                        <span class="pill pill-muted">0</span>
-                        {% endif %}
+                        <span class="pill pill-info">
+                            {{ mit.sts_status|replace('_',' ')|title }}
+                        </span>
                     </td>
 
-                    <td>
-                        {% if counts.submitted > 0 %}
-                        <span class="pill pill-info">{{ counts.submitted }}</span>
-                        {% else %}
-                        <span class="pill pill-muted">0</span>
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        {% if mit.sts_status == "ready" %}
-                        <span class="pill pill-success">Ready</span>
-                        {% elif mit.sts_status == "blocked" %}
-                        <span class="pill pill-danger">Blocked</span>
-                        {% elif mit.sts_status == "promoted" %}
-                        <span class="pill pill-info">Promoted</span>
-                        {% elif mit.sts_status == "inactive" %}
-                        <span class="pill pill-muted">Inactive</span>
-                        {% else %}
-                        <span class="pill pill-warning">{{ mit.sts_status|replace('_', ' ')|title }}</span>
-                        {% endif %}
-                    </td>
-
-                    <td style="text-align: center;">
-                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                            <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
-                            <a class="btn btn-secondary" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit</a>
-                        </div>
+                    <td style="text-align:center;">
+                        <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    {% else %}
-    <div class="empty-state">
-        <h3>No MIT profiles found</h3>
-        <p>Try adjusting the filters or create a new MIT profile.</p>
-    </div>
     {% endif %}
 </div>
-
-<style>
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 1120px;
-}
-
-.data-table th,
-.data-table td {
-    padding: 14px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    vertical-align: middle;
-    text-align: left;
-}
-
-.data-table th {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    opacity: 0.75;
-    font-weight: 700;
-}
-
-.data-table tbody tr:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    padding: 6px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
-}
-
-.pill-success {
-    background: rgba(34, 197, 94, 0.16);
-    color: #4ade80;
-}
-
-.pill-danger {
-    background: rgba(239, 68, 68, 0.16);
-    color: #f87171;
-}
-
-.pill-warning {
-    background: rgba(245, 158, 11, 0.16);
-    color: #fbbf24;
-}
-
-.pill-info {
-    background: rgba(59, 130, 246, 0.16);
-    color: #60a5fa;
-}
-
-.pill-muted {
-    background: rgba(148, 163, 184, 0.16);
-    color: #cbd5e1;
-}
-
-.pill-neutral {
-    background: rgba(255, 255, 255, 0.08);
-    color: #e5e7eb;
-}
-
-@media (max-width: 900px) {
-    .data-table {
-        min-width: 980px;
-    }
-}
-</style>
 {% endblock %}
