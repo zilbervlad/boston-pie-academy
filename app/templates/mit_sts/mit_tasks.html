@@ -135,7 +135,7 @@
 
                     <td style="text-align:center;">
                         <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
-                            {% if current_user.id == mit.user_id and task.status in ["open", "in_progress"] or display_status == "overdue" %}
+                            {% if current_user.id == mit.user_id and (task.status in ["open", "in_progress"] or display_status == "overdue") %}
                             <form method="POST" action="{{ url_for('mit_sts.submit_task_for_review', task_id=task.id) }}" style="margin:0;">
                                 <button type="submit" class="btn btn-secondary btn-sm">Submit</button>
                             </form>
