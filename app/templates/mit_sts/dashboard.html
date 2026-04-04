@@ -17,9 +17,7 @@
     {% endif %}
 </div>
 
-<!-- 🔥 MAIN STATS -->
 <div class="stats-grid">
-
     <div class="card stat-card">
         <p class="stat-label">Total MITs</p>
         <h3 class="stat-value">{{ total_mits }}</h3>
@@ -40,19 +38,16 @@
         <h3 class="stat-value">{{ level_3_count }}</h3>
     </div>
 
-    <!-- ⭐ COMPANY SCORE -->
-    <div class="card stat-card" style="background:#0f172a; color:white;">
-        <p class="stat-label">Company Education Score</p>
-        <h3 class="stat-value">{{ company_score }}%</h3>
+    <div class="card stat-card">
+        <p class="stat-label">Company Education Level</p>
+        <h3 class="stat-value">Level {{ company_score }}</h3>
     </div>
-
 </div>
 
-<!-- 🔥 COACH SCOREBOARD -->
 <div class="card" style="margin-top: 24px;">
     <div class="section-header">
-        <h3 style="margin:0;">Coach Education Scores</h3>
-        <p class="subtle" style="margin-top:4px;">Average MIT progress per coach</p>
+        <h3 style="margin:0;">Coach Education Levels</h3>
+        <p class="subtle" style="margin-top:4px;">Average MIT level per coach</p>
     </div>
 
     {% if coach_scores %}
@@ -62,7 +57,7 @@
                 <tr>
                     <th>Coach</th>
                     <th>MIT Count</th>
-                    <th>Score</th>
+                    <th>Education Level</th>
                 </tr>
             </thead>
             <tbody>
@@ -70,7 +65,7 @@
                 <tr>
                     <td>{{ coach.coach_name }}</td>
                     <td>{{ coach.mit_count }}</td>
-                    <td><strong>{{ coach.score }}%</strong></td>
+                    <td><strong>Level {{ coach.score }}</strong></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -81,7 +76,6 @@
     {% endif %}
 </div>
 
-<!-- 🔥 RECENT MITS -->
 <div class="card" style="margin-top: 24px;">
     <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
         <div>
@@ -92,7 +86,7 @@
         <a href="{{ url_for('mit_sts.list_mits') }}" class="btn btn-secondary">View All</a>
     </div>
 
-    {% if mits %}
+    {% if recent_mits %}
     <div class="table-wrap" style="margin-top: 18px;">
         <table class="data-table">
             <thead>
@@ -106,7 +100,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for mit in mits[:5] %}
+                {% for mit in recent_mits %}
                 <tr>
                     <td>{{ mit.mit_user.name if mit.mit_user else "MIT #" ~ mit.id }}</td>
                     <td>{{ mit.store_number or "-" }}</td>
@@ -128,5 +122,4 @@
     </div>
     {% endif %}
 </div>
-
 {% endblock %}

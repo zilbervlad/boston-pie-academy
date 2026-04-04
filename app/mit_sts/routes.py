@@ -442,12 +442,12 @@ def dashboard():
     level_2_count = 0
     level_3_count = 0
 
-    total_progress_sum = 0
-    total_progress_count = 0
+    total_level_sum = 0
+    total_mit_count = 0
 
     coach_scores = defaultdict(lambda: {
         "coach_name": "Unassigned",
-        "total_progress": 0,
+        "total_level": 0,
         "mit_count": 0,
         "score": 0,
     })
@@ -455,11 +455,10 @@ def dashboard():
     for mit in mits:
         current_level = getattr(mit, "current_level", 1) or 1
         progress = calculate_level_progress(mit.id, current_level)
-
         recent_progress_map[mit.id] = progress
 
-        total_progress_sum += progress
-        total_progress_count += 1
+        total_level_sum += current_level
+        total_mit_count += 1
 
         if current_level == 1:
             level_1_count += 1
@@ -472,18 +471,21 @@ def dashboard():
         coach_name = coach.name if coach else "Unassigned"
 
         coach_scores[coach_name]["coach_name"] = coach_name
-        coach_scores[coach_name]["total_progress"] += progress
+        coach_scores[coach_name]["total_level"] += current_level
         coach_scores[coach_name]["mit_count"] += 1
 
-    company_score = round(total_progress_sum / total_progress_count, 1) if total_progress_count else 0
+    company_score = round(total_level_sum / total_mit_count, 1) if total_mit_count else 0
 
     for coach in coach_scores.values():
         if coach["mit_count"]:
-            coach["score"] = round(coach["total_progress"] / coach["mit_count"], 1)
+            coach["score"] = round(coach["total_level"] / coach["mit_count"], 1)
+
+    recent_mits = mits[:5]
 
     return render_template(
         "mit_sts/dashboard.html",
         mits=mits,
+        recent_mits=recent_mits,
         total_mits=len(mits),
         level_1_count=level_1_count,
         level_2_count=level_2_count,
@@ -493,7 +495,6 @@ def dashboard():
         recent_progress_map=recent_progress_map,
         user=current_user,
     )
-
 
 
 # --------------------------------------------------
