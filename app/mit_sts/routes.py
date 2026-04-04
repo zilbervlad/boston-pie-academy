@@ -436,49 +436,37 @@ def dashboard():
         .all()
     )
 
+    overdue_tasks_count = 0
+    submitted_tasks_count = 0
     recent_progress_map = {}
 
     level_1_count = 0
     level_2_count = 0
     level_3_count = 0
-
-    total_progress_sum = 0
-    total_progress_count = 0
-
-    coach_scores = defaultdict(lambda: {
-        "coach_name": "Unassigned",
-        "total_progress": 0,
-        "mit_count": 0,
-        "score": 0,
-    })
+    ready_count = 0
+    blocked_count = 0
 
     for mit in mits:
-        current_level = getattr(mit, "current_level", 1) or 1
-        progress = calculate_level_progress(mit.id, current_level)
-        recent_progress_map[mit.id] = progress
-
-        total_progress_sum += progress
-        total_progress_count += 1
-
-        if current_level == 1:
+        if getattr(mit, "current_level", None) == 1:
             level_1_count += 1
-        elif current_level == 2:
+        elif getattr(mit, "current_level", None) == 2:
             level_2_count += 1
-        elif current_level == 3:
+        elif getattr(mit, "current_level", None) == 3:
             level_3_count += 1
 
-        coach = getattr(mit, "coach", None)
-        coach_name = coach.name if coach else "Unassigned"
+        if getattr(mit, "sts_status", None) == "ready":
+            ready_count += 1
+        elif getattr(mit, "sts_status", None) == "blocked":
+            blocked_count += 1
 
-        coach_scores[coach_name]["coach_name"] = coach_name
-        coach_scores[coach_name]["total_progress"] += progress
-        coach_scores[coach_name]["mit_count"] += 1
+        _, overdue, submitted = get_task_counts(mit.id)
+        overdue_tasks_count += overdue
+        submitted_tasks_count += submitted
 
-    company_score = round(total_progress_sum / total_progress_count, 1) if total_progress_count else 0
+        current_level = getattr(mit, "current_level", 1) or 1
+        recent_progress_map[mit.id] = calculate_level_progress(mit.id, current_level)
 
-    for coach in coach_scores.values():
-        if coach["mit_count"]:
-            coach["score"] = round(coach["total_progress"] / coach["mit_count"], 1)
+    recent_mits = mits[:5]
 
     return render_template(
         "mit_sts/dashboard.html",
@@ -490,8 +478,17 @@ def dashboard():
         company_score=company_score,
         coach_scores=coach_scores,
         recent_progress_map=recent_progress_map,
+        user=current_user,
+    ),
+        ready_count=ready_count,
+        blocked_count=blocked_count,
+        level_1_count=level_1_count,
+        level_2_count=level_2_count,
+        level_3_count=level_3_count,
+        recent_mits=recent_mits,
+        recent_progress_map=recent_progress_map,
+        user=current_user,
     )
-
 
 
 # --------------------------------------------------
