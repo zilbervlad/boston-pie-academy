@@ -7,7 +7,7 @@
     <div>
         <p class="eyebrow">MIT STS</p>
         <h2>Dashboard</h2>
-        <p class="subtle">Track MIT development, readiness, and task activity.</p>
+        <p class="subtle">Track MIT development and education performance.</p>
     </div>
 
     {% if user.role in ["coach", "admin", "training_director"] %}
@@ -17,23 +17,9 @@
     {% endif %}
 </div>
 
-{% if overdue_tasks_count > 0 %}
-<div class="card" style="margin-bottom: 18px; border-left: 4px solid #dc2626;">
-    <p style="margin: 0; font-weight: 600;">Attention needed</p>
-    <p class="subtle" style="margin: 6px 0 0 0;">
-        You have {{ overdue_tasks_count }} overdue task{% if overdue_tasks_count != 1 %}s{% endif %}.
-    </p>
-</div>
-{% elif ready_count > 0 %}
-<div class="card" style="margin-bottom: 18px; border-left: 4px solid #16a34a;">
-    <p style="margin: 0; font-weight: 600;">Ready to move</p>
-    <p class="subtle" style="margin: 6px 0 0 0;">
-        {{ ready_count }} MIT{% if ready_count != 1 %}s are{% else %} is{% endif %} ready for the next step.
-    </p>
-</div>
-{% endif %}
-
+<!-- 🔥 MAIN STATS -->
 <div class="stats-grid">
+
     <div class="card stat-card">
         <p class="stat-label">Total MITs</p>
         <h3 class="stat-value">{{ total_mits }}</h3>
@@ -54,38 +40,59 @@
         <h3 class="stat-value">{{ level_3_count }}</h3>
     </div>
 
-    <div class="card stat-card">
-        <p class="stat-label">Ready</p>
-        <h3 class="stat-value">{{ ready_count }}</h3>
+    <!-- ⭐ COMPANY SCORE -->
+    <div class="card stat-card" style="background:#0f172a; color:white;">
+        <p class="stat-label">Company Education Score</p>
+        <h3 class="stat-value">{{ company_score }}%</h3>
     </div>
 
-    <div class="card stat-card">
-        <p class="stat-label">Blocked</p>
-        <h3 class="stat-value">{{ blocked_count }}</h3>
-    </div>
-
-    <div class="card stat-card">
-        <p class="stat-label">Overdue Tasks</p>
-        <h3 class="stat-value">{{ overdue_tasks_count }}</h3>
-    </div>
-
-    <div class="card stat-card">
-        <p class="stat-label">Submitted Tasks</p>
-        <h3 class="stat-value">{{ submitted_tasks_count }}</h3>
-    </div>
 </div>
 
+<!-- 🔥 COACH SCOREBOARD -->
 <div class="card" style="margin-top: 24px;">
-    <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+    <div class="section-header">
+        <h3 style="margin:0;">Coach Education Scores</h3>
+        <p class="subtle" style="margin-top:4px;">Average MIT progress per coach</p>
+    </div>
+
+    {% if coach_scores %}
+    <div class="table-wrap" style="margin-top: 16px;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Coach</th>
+                    <th>MIT Count</th>
+                    <th>Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for coach in coach_scores.values() %}
+                <tr>
+                    <td>{{ coach.coach_name }}</td>
+                    <td>{{ coach.mit_count }}</td>
+                    <td><strong>{{ coach.score }}%</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="subtle" style="margin-top: 12px;">No coach data yet.</p>
+    {% endif %}
+</div>
+
+<!-- 🔥 RECENT MITS -->
+<div class="card" style="margin-top: 24px;">
+    <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
         <div>
             <h3 style="margin:0;">Recent MITs</h3>
-            <p class="subtle" style="margin:4px 0 0 0;">Latest MIT development profiles.</p>
+            <p class="subtle" style="margin-top:4px;">Latest development profiles</p>
         </div>
 
         <a href="{{ url_for('mit_sts.list_mits') }}" class="btn btn-secondary">View All</a>
     </div>
 
-    {% if recent_mits %}
+    {% if mits %}
     <div class="table-wrap" style="margin-top: 18px;">
         <table class="data-table">
             <thead>
@@ -94,31 +101,17 @@
                     <th>Store</th>
                     <th>Coach</th>
                     <th>Level</th>
-                    <th>Status</th>
                     <th>Progress</th>
                     <th style="width: 120px;">Action</th>
                 </tr>
             </thead>
             <tbody>
-                {% for mit in recent_mits %}
+                {% for mit in mits[:5] %}
                 <tr>
-                    <td>
-                        {% if mit.mit_user %}
-                            {{ mit.mit_user.name }}
-                        {% else %}
-                            MIT #{{ mit.id }}
-                        {% endif %}
-                    </td>
+                    <td>{{ mit.mit_user.name if mit.mit_user else "MIT #" ~ mit.id }}</td>
                     <td>{{ mit.store_number or "-" }}</td>
-                    <td>
-                        {% if mit.coach_user %}
-                            {{ mit.coach_user.name }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
+                    <td>{{ mit.coach_user.name if mit.coach_user else "-" }}</td>
                     <td>Level {{ mit.current_level }}</td>
-                    <td>{{ mit.sts_status.replace('_', ' ').title() if mit.sts_status else '-' }}</td>
                     <td>{{ recent_progress_map.get(mit.id, 0) }}%</td>
                     <td>
                         <a href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}" class="btn btn-secondary btn-sm">Open</a>
@@ -130,15 +123,10 @@
     </div>
     {% else %}
     <div class="card" style="margin-top: 18px; text-align:center;">
-        <h3 style="margin-bottom: 8px;">No MITs yet</h3>
+        <h3>No MITs yet</h3>
         <p class="subtle">Start building your bench.</p>
-
-        {% if user.role in ["coach", "admin", "training_director"] %}
-        <a href="{{ url_for('mit_sts.new_mit') }}" class="btn btn-primary" style="margin-top: 12px;">
-            + Create First MIT
-        </a>
-        {% endif %}
     </div>
     {% endif %}
 </div>
+
 {% endblock %}
