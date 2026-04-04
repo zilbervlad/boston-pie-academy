@@ -196,8 +196,10 @@
                                         </form>
                                         {% endif %}
 
-                                        {% if not active_task %}
-                                        <a href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}" class="btn btn-secondary btn-sm review-btn-secondary">Assign</a>
+                                        {% if not active_task and progress %}
+                                        <form method="POST" action="{{ url_for('mit_sts.quick_add_task', task_id=progress.id) }}">
+                                            <button type="submit" class="btn btn-secondary btn-sm review-btn-secondary">Assign</button>
+                                        </form>
                                         {% endif %}
                                     {% endif %}
 
