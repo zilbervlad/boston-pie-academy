@@ -1,57 +1,51 @@
 {% extends "base.html" %}
 
-{% block title %}MIT List{% endblock %}
+{% block title %}All MITs{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header page-header-tight">
     <div>
         <p class="eyebrow">MIT STS</p>
-        <h2>MIT Records</h2>
-        <p class="subtle">Search, filter, and manage MIT development profiles.</p>
+        <h2>All MITs</h2>
+        <p class="subtle">Search, review, and manage MIT development profiles.</p>
     </div>
 
-    <div class="track-actions">
-        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_mit') }}">+ New MIT</a>
-    </div>
+    {% if user.role in ["coach", "admin", "training_director"] %}
+    <a href="{{ url_for('mit_sts.new_mit') }}" class="btn btn-primary">
+        + New MIT
+    </a>
+    {% endif %}
 </div>
 
-{% set message = doughy_message %}
-{% include "partials/doughy.html" %}
-
 <div class="card" style="margin-bottom: 18px;">
-    <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
-        <div>
-            <h3>Filter MIT Records</h3>
-            <p>Use quick filters to narrow the database view.</p>
-        </div>
-        <div class="badge">
-            {{ mits|length }} Record{{ '' if mits|length == 1 else 's' }}
-        </div>
+    <div class="card-header">
+        <h3>MIT Filters</h3>
+        <p>Search by MIT, narrow by store, coach, status, level, or task condition.</p>
     </div>
 
-    <form method="GET" action="{{ url_for('mit_sts.list_mits') }}" class="form-grid">
+    <form method="GET" class="form-grid">
         <div class="form-group">
-            <label>Name Search</label>
-            <input type="text" name="q" value="{{ q or '' }}" placeholder="Search by MIT name">
+            <label>Search</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search by MIT name">
         </div>
 
         <div class="form-group">
             <label>Store</label>
             <select name="store">
                 <option value="">All Stores</option>
-                {% for store in stores %}
-                <option value="{{ store }}" {% if selected_store == store %}selected{% endif %}>{{ store }}</option>
+                {% for item in stores %}
+                <option value="{{ item }}" {% if selected_store == item %}selected{% endif %}>{{ item }}</option>
                 {% endfor %}
             </select>
         </div>
 
         <div class="form-group">
-            <label>Current Level</label>
+            <label>Level</label>
             <select name="level">
                 <option value="">All Levels</option>
-                <option value="1" {% if selected_level == '1' %}selected{% endif %}>Level 1</option>
-                <option value="2" {% if selected_level == '2' %}selected{% endif %}>Level 2</option>
-                <option value="3" {% if selected_level == '3' %}selected{% endif %}>Level 3</option>
+                <option value="1" {% if selected_level == "1" %}selected{% endif %}>Level 1</option>
+                <option value="2" {% if selected_level == "2" %}selected{% endif %}>Level 2</option>
+                <option value="3" {% if selected_level == "3" %}selected{% endif %}>Level 3</option>
             </select>
         </div>
 
@@ -59,11 +53,11 @@
             <label>Status</label>
             <select name="status">
                 <option value="">All Statuses</option>
-                <option value="on_track" {% if selected_status == 'on_track' %}selected{% endif %}>On Track</option>
-                <option value="blocked" {% if selected_status == 'blocked' %}selected{% endif %}>Blocked</option>
-                <option value="ready" {% if selected_status == 'ready' %}selected{% endif %}>Ready</option>
-                <option value="promoted" {% if selected_status == 'promoted' %}selected{% endif %}>Promoted</option>
-                <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>Inactive</option>
+                <option value="on_track" {% if selected_status == "on_track" %}selected{% endif %}>On Track</option>
+                <option value="blocked" {% if selected_status == "blocked" %}selected{% endif %}>Blocked</option>
+                <option value="ready" {% if selected_status == "ready" %}selected{% endif %}>Ready</option>
+                <option value="promoted" {% if selected_status == "promoted" %}selected{% endif %}>Promoted</option>
+                <option value="inactive" {% if selected_status == "inactive" %}selected{% endif %}>Inactive</option>
             </select>
         </div>
 
@@ -71,8 +65,8 @@
             <label>Coach</label>
             <select name="coach">
                 <option value="">All Coaches</option>
-                {% for coach in coaches %}
-                <option value="{{ coach.id }}" {% if selected_coach == coach.id|string %}selected{% endif %}>{{ coach.name }}</option>
+                {% for c in coaches %}
+                <option value="{{ c.id }}" {% if selected_coach == c.id|string %}selected{% endif %}>{{ c.name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -80,121 +74,131 @@
         <div class="form-group">
             <label>Task Filter</label>
             <select name="task_filter">
-                <option value="">All Task States</option>
-                <option value="open" {% if selected_task_filter == 'open' %}selected{% endif %}>Has Open Tasks</option>
-                <option value="overdue" {% if selected_task_filter == 'overdue' %}selected{% endif %}>Has Overdue Tasks</option>
-                <option value="submitted" {% if selected_task_filter == 'submitted' %}selected{% endif %}>Has Submitted Tasks</option>
+                <option value="">All</option>
+                <option value="open" {% if selected_task_filter == "open" %}selected{% endif %}>Open Tasks</option>
+                <option value="overdue" {% if selected_task_filter == "overdue" %}selected{% endif %}>Overdue Tasks</option>
+                <option value="submitted" {% if selected_task_filter == "submitted" %}selected{% endif %}>Submitted Tasks</option>
             </select>
         </div>
 
         <div class="form-actions form-group-full">
             <button type="submit" class="btn btn-primary">Apply Filters</button>
-            <a href="{{ url_for('mit_sts.list_mits') }}" class="btn btn-secondary">Clear</a>
+            <a href="{{ url_for('mit_sts.list_mits') }}" class="btn btn-secondary">Reset</a>
         </div>
     </form>
 </div>
 
+<div class="doughy-banner" style="margin-bottom:18px;">
+    <div class="doughy-left">
+        <div class="doughy-avatar">🍕</div>
+        <div>
+            <strong>Doughy says</strong>
+            <p>{{ doughy_message }}</p>
+        </div>
+    </div>
+</div>
+
+{% if mits %}
 <div class="card">
     <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
         <div>
-            <h3>MIT Database View</h3>
-            <p>Live training records for all MIT profiles.</p>
+            <h3>MIT Directory</h3>
+            <p>{{ mits|length }} MIT{{ '' if mits|length == 1 else 's' }} matched your current filters.</p>
         </div>
-        <div class="track-meta" style="margin-top:0;">
-            <span>View:</span>
-            <span>Table</span>
+        <div class="badge">
+            Live View
         </div>
     </div>
 
-    {% if mits %}
-    <div class="table-wrapper">
-        <table class="data-table">
+    <div class="table-wrap">
+        <table class="data-table level-review-table">
             <thead>
                 <tr>
                     <th style="min-width: 220px;">MIT</th>
-                    <th>Store</th>
-                    <th>Level</th>
-                    <th style="min-width: 170px;">Coach</th>
-                    <th style="min-width: 170px;">Progress</th>
-                    <th>Open</th>
-                    <th>Overdue</th>
-                    <th>Submitted</th>
-                    <th>Status</th>
-                    <th style="text-align:center; min-width: 120px;">Actions</th>
+                    <th style="min-width: 90px;">Store</th>
+                    <th style="min-width: 150px;">Coach</th>
+                    <th style="min-width: 90px;">Level</th>
+                    <th style="min-width: 120px;">Status</th>
+                    <th style="min-width: 180px;">Progress</th>
+                    <th style="min-width: 160px;">Tasks</th>
+                    <th style="min-width: 150px; text-align:center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for mit in mits %}
                 {% set progress = progress_map.get(mit.id, 0) %}
-                {% set counts = task_counts_map.get(mit.id, {'open': 0, 'overdue': 0, 'submitted': 0}) %}
-                <tr class="{% if counts.overdue > 0 %}mit-row-overdue{% endif %}">
+                {% set counts = task_counts_map.get(mit.id, {"open": 0, "overdue": 0, "submitted": 0}) %}
+                <tr class="level-review-row {% if counts.overdue > 0 %}mit-row-overdue{% endif %}">
                     <td>
-                        <div style="display:flex; flex-direction:column; gap:4px;">
-                            <strong>{{ mit.mit_user.name }}</strong>
-                            <span style="font-size:12px; color:#94a3b8;">
-                                MIT ID: {{ mit.id }}
-                            </span>
+                        <div class="review-item-cell">
+                            {% if mit.mit_user %}
+                                <a href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}" class="review-item-title" style="text-decoration:none;">
+                                    {{ mit.mit_user.name }}
+                                </a>
+                            {% else %}
+                                <a href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}" class="review-item-title" style="text-decoration:none;">
+                                    MIT #{{ mit.id }}
+                                </a>
+                            {% endif %}
+                            <div class="review-item-description">
+                                {% if counts.overdue > 0 %}
+                                    {{ counts.overdue }} overdue task{{ '' if counts.overdue == 1 else 's' }}
+                                {% elif counts.submitted > 0 %}
+                                    {{ counts.submitted }} submitted task{{ '' if counts.submitted == 1 else 's' }}
+                                {% elif counts.open > 0 %}
+                                    {{ counts.open }} active task{{ '' if counts.open == 1 else 's' }}
+                                {% else %}
+                                    No active task pressure
+                                {% endif %}
+                            </div>
                         </div>
                     </td>
 
-                    <td>
-                        {{ mit.store_number or 'Not set' }}
-                    </td>
+                    <td>{{ mit.store_number or "—" }}</td>
+
+                    <td>{{ mit.coach_user.name if mit.coach_user else "—" }}</td>
 
                     <td>
-                        <span class="pill pill-neutral">Level {{ mit.current_level }}</span>
-                    </td>
-
-                    <td>
-                        {{ mit.coach_user.name if mit.coach_user else 'Unassigned' }}
-                    </td>
-
-                    <td>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; color:#94a3b8; margin-bottom:4px;">
-                            <span>{{ progress }}%</span>
-                            <span>Current Level</span>
-                        </div>
-                        <div class="progress-bar" style="margin-top:0;">
-                            <div class="progress-fill" style="width: {{ progress }}%;"></div>
-                        </div>
-                    </td>
-
-                    <td>
-                        <span class="pill {{ 'pill-warning' if counts.open else 'pill-muted' }}">
-                            {{ counts.open }}
-                        </span>
-                    </td>
-
-                    <td>
-                        <span class="pill {{ 'pill-danger' if counts.overdue else 'pill-muted' }}">
-                            {{ counts.overdue }}
-                        </span>
-                    </td>
-
-                    <td>
-                        <span class="pill {{ 'pill-info' if counts.submitted else 'pill-muted' }}">
-                            {{ counts.submitted }}
-                        </span>
+                        <span class="pill pill-info review-pill">Level {{ mit.current_level }}</span>
                     </td>
 
                     <td>
                         {% if mit.sts_status == "ready" %}
-                            <span class="pill pill-success">Ready</span>
+                            <span class="pill pill-success review-pill">Ready</span>
                         {% elif mit.sts_status == "blocked" %}
-                            <span class="pill pill-danger">Blocked</span>
+                            <span class="pill pill-danger review-pill">Blocked</span>
                         {% elif mit.sts_status == "promoted" %}
-                            <span class="pill pill-info">Promoted</span>
+                            <span class="pill pill-info review-pill">Promoted</span>
                         {% elif mit.sts_status == "inactive" %}
-                            <span class="pill pill-muted">Inactive</span>
+                            <span class="pill pill-muted review-pill">Inactive</span>
                         {% else %}
-                            <span class="pill pill-warning">{{ mit.sts_status|replace('_',' ')|title }}</span>
+                            <span class="pill pill-warning review-pill">{{ mit.sts_status.replace('_', ' ').title() if mit.sts_status else '—' }}</span>
                         {% endif %}
                     </td>
 
+                    <td>
+                        <div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">
+                            <div style="font-size:12px; color:#64748b;">{{ progress }}%</div>
+                            <div class="progress-bar" style="margin-top:0;">
+                                <div class="progress-fill" style="width: {{ progress }}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td>
+                        <div class="review-task-cell">
+                            <div class="review-task-title" style="white-space:normal; max-width:none;">
+                                <strong>Open:</strong> {{ counts.open }}<br>
+                                <strong>Overdue:</strong> {{ counts.overdue }}<br>
+                                <strong>Submitted:</strong> {{ counts.submitted }}
+                            </div>
+                        </div>
+                    </td>
+
                     <td style="text-align:center;">
-                        <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
-                            <a class="btn btn-secondary btn-sm" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
-                            <a class="btn btn-secondary btn-sm" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit</a>
+                        <div class="review-actions">
+                            <a href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}" class="btn btn-secondary btn-sm review-btn-secondary">Open</a>
+                            <a href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}" class="btn btn-secondary btn-sm review-btn-secondary">Edit</a>
                         </div>
                     </td>
                 </tr>
@@ -202,11 +206,17 @@
             </tbody>
         </table>
     </div>
-    {% else %}
-    <div class="empty-state">
-        <h3>No MIT records found</h3>
-        <p>Try adjusting your filters or create a new MIT profile.</p>
+</div>
+{% else %}
+<div class="empty-state">
+    <h3>No MITs found</h3>
+    <p>Try adjusting your filters or create the first MIT development profile.</p>
+
+    {% if user.role in ["coach", "admin", "training_director"] %}
+    <div class="page-footer-actions">
+        <a href="{{ url_for('mit_sts.new_mit') }}" class="btn btn-primary">+ Create First MIT</a>
     </div>
     {% endif %}
 </div>
+{% endif %}
 {% endblock %}

@@ -8,49 +8,49 @@
         <p class="eyebrow">MIT STS</p>
         <h2>{{ mit.mit_user.name }} — Level {{ level_number }}</h2>
         <p class="subtle">
-            Training record • Store {{ mit.store_number or 'Not set' }} • Current Level {{ mit.current_level }}
+            Progress + verification view • Store {{ mit.store_number or 'Not set' }} • Current Level {{ mit.current_level }}
         </p>
     </div>
 
     <div class="track-actions">
         <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Back to MIT Profile</a>
-        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">+ Assign Task</a>
+        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">Open Task Board</a>
     </div>
 </div>
 
 {% if is_complete %}
     {% set message = "Level " ~ level_number ~ " is complete for " ~ mit.mit_user.name ~ ". Review readiness and next-step timing." %}
 {% elif active_task_map %}
-    {% set message = "Level " ~ level_number ~ " has active linked tasks. Keep progress tight and close open loops before adding too much more." %}
+    {% set message = "Level " ~ level_number ~ " has active linked tasks. Coach the open work, then verify the finished items." %}
 {% elif level_progress >= 80 %}
     {% set message = mit.mit_user.name ~ " is at " ~ level_progress ~ "% on Level " ~ level_number ~ ". Finish the final items and verify cleanly." %}
 {% elif level_progress > 0 %}
-    {% set message = mit.mit_user.name ~ " is in progress on Level " ~ level_number ~ ". Focus on consistency and verified completion." %}
+    {% set message = mit.mit_user.name ~ " is in progress on Level " ~ level_progress ~ ". Focus on consistent completion and verification." %}
 {% else %}
     {% set message = "Level " ~ level_number ~ " has not started yet. Assign the first few high-value items and build momentum." %}
 {% endif %}
 {% include "partials/doughy.html" %}
 
-<div class="card" style="margin-bottom: 18px;">
+<div class="card level-summary-card" style="margin-bottom: 18px;">
     <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
         <div>
             <h3>Level Summary</h3>
-            <p>Current completion status and linked task activity for this level.</p>
+            <p>This screen is for verifying STS progress. Active task assignment lives on the task board.</p>
         </div>
         <div class="badge">
             Level {{ level_number }} Record
         </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap:16px;">
-        <div>
+    <div class="level-summary-grid">
+        <div class="level-summary-stat">
             <div class="stat-label">Level Progress</div>
-            <div style="margin-top:8px; font-size:20px; font-weight:700;">{{ level_progress }}%</div>
+            <div class="level-summary-value">{{ level_progress }}%</div>
         </div>
 
-        <div>
+        <div class="level-summary-stat">
             <div class="stat-label">Completion Status</div>
-            <div style="margin-top:8px;">
+            <div class="level-summary-pill-wrap">
                 {% if is_complete %}
                     <span class="pill pill-success">Complete</span>
                 {% elif level_progress > 0 %}
@@ -61,9 +61,9 @@
             </div>
         </div>
 
-        <div>
+        <div class="level-summary-stat">
             <div class="stat-label">Current MIT Level</div>
-            <div style="margin-top:8px;">
+            <div class="level-summary-pill-wrap">
                 {% if mit.current_level == level_number %}
                     <span class="pill pill-info">Current Level</span>
                 {% else %}
@@ -72,14 +72,14 @@
             </div>
         </div>
 
-        <div>
+        <div class="level-summary-stat">
             <div class="stat-label">Active Linked Tasks</div>
-            <div style="margin-top:8px; font-size:20px; font-weight:700;">{{ active_task_map|length }}</div>
+            <div class="level-summary-value">{{ active_task_map|length }}</div>
         </div>
     </div>
 
-    <div style="margin-top:18px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; color:#94a3b8; margin-bottom:4px;">
+    <div class="level-progress-wrap">
+        <div class="level-progress-meta">
             <span>Level {{ level_number }} Progress</span>
             <span>{{ level_progress }}%</span>
         </div>
@@ -89,11 +89,11 @@
     </div>
 </div>
 
-<div class="card">
+<div class="card level-items-card">
     <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
         <div>
             <h3>Level {{ level_number }} STS Items</h3>
-            <p>Review status, linked tasks, and progress by category.</p>
+            <p>Verify completion here. Assign or manage task workflow from the task board.</p>
         </div>
         <div class="track-meta" style="margin-top:0;">
             <span>{{ grouped_items|length }}</span>
@@ -103,104 +103,114 @@
 
     {% if grouped_items %}
         {% for category, items in grouped_items.items() %}
-        <div style="{% if not loop.first %}margin-top:22px; padding-top:18px; border-top:1px solid rgba(255,255,255,0.08);{% endif %}">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+        <section class="level-category-block {% if not loop.first %}level-category-block-spaced{% endif %}">
+            <div class="level-category-header">
                 <div>
-                    <h4 style="margin:0; font-size:18px;">{{ category }}</h4>
-                    <p class="subtle" style="margin-top:4px;">{{ items|length }} item{{ '' if items|length == 1 else 's' }}</p>
+                    <h4>{{ category }}</h4>
+                    <p class="subtle">{{ items|length }} item{{ '' if items|length == 1 else 's' }}</p>
                 </div>
             </div>
 
             <div class="table-wrapper">
-                <table class="data-table">
+                <table class="data-table level-review-table">
                     <thead>
                         <tr>
-                            <th style="min-width: 260px;">STS Item</th>
-                            <th style="min-width: 140px;">Status</th>
-                            <th style="min-width: 210px;">Linked Task</th>
-                            <th style="min-width: 160px;">Verified</th>
-                            <th style="text-align:center; min-width: 120px;">Actions</th>
+                            <th style="min-width: 320px;">STS Item</th>
+                            <th style="min-width: 120px;">Progress</th>
+                            <th style="min-width: 220px;">Task</th>
+                            <th style="min-width: 140px;">Verified</th>
+                            <th style="min-width: 150px; text-align:center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in items %}
                         {% set progress = progress_map.get(item.id) %}
-                        {% set linked_task = active_task_map.get(item.id) %}
-                        <tr>
+                        {% set active_task = active_task_map.get(item.id) %}
+                        {% set last_task = all_linked_task_map.get(item.id) %}
+                        <tr class="level-review-row">
                             <td>
-                                <div style="display:flex; flex-direction:column; gap:5px;">
-                                    <strong>{{ item.item_name }}</strong>
+                                <div class="review-item-cell">
+                                    <div class="review-item-title">{{ item.item_name }}</div>
                                     {% if item.item_description %}
-                                    <span style="font-size:12px; color:#94a3b8; line-height:1.45;">
+                                    <div class="review-item-description">
                                         {{ item.item_description }}
-                                    </span>
+                                    </div>
                                     {% endif %}
                                 </div>
                             </td>
 
                             <td>
                                 {% if progress and progress.status == 'complete' %}
-                                    <span class="pill pill-success">Complete</span>
+                                    <span class="pill pill-success review-pill">Complete</span>
                                 {% elif progress and progress.status == 'in_progress' %}
-                                    <span class="pill pill-warning">In Progress</span>
+                                    <span class="pill pill-warning review-pill">In Progress</span>
                                 {% else %}
-                                    <span class="pill pill-muted">Not Started</span>
+                                    <span class="pill pill-muted review-pill">Not Started</span>
                                 {% endif %}
                             </td>
 
                             <td>
-                                {% if linked_task %}
-                                    <div style="display:flex; flex-direction:column; gap:5px;">
-                                        <span class="pill pill-info">{{ task_display_status(linked_task)|replace('_', ' ')|title }}</span>
-                                        <span style="font-size:12px; color:#94a3b8;">
-                                            {{ linked_task.title }}
+                                {% if active_task %}
+                                    <div class="review-task-cell">
+                                        <span class="pill pill-info review-pill review-task-pill">
+                                            {{ task_display_status(active_task)|replace('_', ' ')|title }}
                                         </span>
+                                        <div class="review-task-title">{{ active_task.title }}</div>
+                                    </div>
+                                {% elif last_task and last_task.status == 'verified' %}
+                                    <div class="review-task-cell">
+                                        <span class="review-empty-text review-empty-success">Task verified</span>
                                     </div>
                                 {% else %}
-                                    <span class="pill pill-muted">No Active Task</span>
+                                    <div class="review-task-cell">
+                                        <span class="review-empty-text">No active task</span>
+                                    </div>
                                 {% endif %}
                             </td>
 
                             <td>
                                 {% if progress and progress.completed_date %}
-                                    <div style="display:flex; flex-direction:column; gap:4px;">
-                                        <span>{{ progress.completed_date.strftime('%Y-%m-%d') }}</span>
-                                        <span style="font-size:12px; color:#94a3b8;">
-                                            {{ progress.verified_by_user.name if progress.verified_by_user else 'Verified' }}
-                                        </span>
+                                    <div class="review-verified-cell">
+                                        <div class="review-verified-date">{{ progress.completed_date.strftime('%b %d, %Y') }}</div>
+                                        <div class="review-verified-by">
+                                            by {{ progress.verified_by_user.name if progress.verified_by_user else 'Verified' }}
+                                        </div>
                                     </div>
                                 {% else %}
-                                    <span style="color:#94a3b8;">—</span>
+                                    <span class="review-empty-text">—</span>
                                 {% endif %}
                             </td>
 
                             <td style="text-align:center;">
-                                <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+                                <div class="review-actions">
                                     {% if can_edit %}
-                                    <form method="POST" action="{{ url_for('mit_sts.update_progress', progress_id=progress.id) }}" style="margin:0;">
-                                        <input type="hidden" name="status" value="{% if progress and progress.status == 'complete' %}not_started{% else %}complete{% endif %}">
-                                        <button type="submit" class="btn btn-secondary btn-sm">
-                                            {% if progress and progress.status == 'complete' %}Reset{% else %}Complete{% endif %}
-                                        </button>
-                                    </form>
-                                    {% endif %}
+                                        {% if progress and progress.status == 'complete' %}
+                                        <form method="POST" action="{{ url_for('mit_sts.update_progress', progress_id=progress.id) }}">
+                                            <input type="hidden" name="status" value="not_started">
+                                            <button type="submit" class="btn btn-secondary btn-sm review-btn-secondary">Reset</button>
+                                        </form>
+                                        {% else %}
+                                        <form method="POST" action="{{ url_for('mit_sts.update_progress', progress_id=progress.id) }}">
+                                            <input type="hidden" name="status" value="complete">
+                                            <button type="submit" class="btn btn-primary btn-sm review-btn-primary">Complete</button>
+                                        </form>
+                                        {% endif %}
 
-                                    {% if can_edit and not linked_task %}
-                                    <form method="POST" action="{{ url_for('mit_sts.quick_add_task', task_id=progress.id) }}" style="margin:0;">
-                                        <input type="hidden" name="title" value="{{ item.item_name }}">
-                                        <input type="hidden" name="priority" value="medium">
-                                        <button type="submit" class="btn btn-secondary btn-sm">Assign</button>
-                                    </form>
+                                        {% if not active_task %}
+                                        <a href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}" class="btn btn-secondary btn-sm review-btn-secondary">Assign</a>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="review-empty-text">—</span>
                                     {% endif %}
                                 </div>
                             </td>
                         </tr>
 
                         {% if progress and progress.notes %}
-                        <tr>
-                            <td colspan="5" style="background: rgba(255,255,255,0.02);">
-                                <div style="font-size:13px; color:#cbd5e1; line-height:1.5;">
-                                    <strong style="color:#e5e7eb;">Notes:</strong> {{ progress.notes }}
+                        <tr class="review-notes-row">
+                            <td colspan="5">
+                                <div class="review-note-box">
+                                    <strong>Notes:</strong> {{ progress.notes }}
                                 </div>
                             </td>
                         </tr>
@@ -209,12 +219,12 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
         {% endfor %}
     {% else %}
     <div class="empty-state">
         <h3>No STS items found for this level</h3>
-        <p>Add level templates first so this record can be tracked properly.</p>
+        <p>Add template items to this level to start tracking progress.</p>
     </div>
     {% endif %}
 </div>

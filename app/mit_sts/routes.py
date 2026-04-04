@@ -4,31 +4,14 @@ from io import BytesIO
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
-from sqlalchemy import func, case, and_
-from sqlalchemy.orm import joinedload
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle,
-)
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
 from app.extensions import db
-from app.models import (
-    User,
-    MITProfile,
-    MITLevelTemplate,
-    MITLevelProgress,
-    MITTask,
-    MITPromotion,
-)
+from app.models import User, MITProfile, MITLevelTemplate, MITLevelProgress, MITTask, MITPromotion
 
 mit_sts_bp = Blueprint("mit_sts", __name__, url_prefix="/mit-sts")
 
@@ -46,46 +29,51 @@ def is_mit():
 
 
 def is_coach():
-    return current_user.is_authenticated and current_user.role == "coach"
-
-
-def is_admin():
-    return current_user.is_authenticated and current_user.role == "admin"
-
-
-def is_training_director():
-    return current_user.is_authenticated and current_user.role == "training_director"
-
-
-def is_leadership():
-    return current_user.is_authenticated and current_user.role in [
-        "coach",
-        "admin",
-        "training_director",
-    ]
-
-
-def can_edit_mit():
-    return is_leadership()
-
-
-def can_manage_templates():
-    return current_user.is_authenticated and current_user.role in [
-        "admin",
-        "training_director",
-        "coach",
-    ]
-
-
-def can_view_mit(mit):
-    if is_leadership():
-        return True
-    return is_mit() and mit.user_id == current_user.id
+    return current_user.is_authenticated and current_user.role in ["coach", "admin", "training_director"]
 
 
 # --------------------------------------------------
-# DISPLAY / STATUS HELPERS
+# HELPERS
 # --------------------------------------------------
+
+def get_task_counts(mit_profile_id):
+    tasks = MITTask.query.filter_by(mit_profile_id=mit_profile_id).all()
+    today = date.today()
+
+    open_count = 0
+    overdue_count = 0
+    submitted_count = 0
+
+    for t in tasks:
+        if t.status not in ["verified", "cancelled"]:
+            open_count += 1
+
+        if t.due_date and t.due_date < today and t.status not in ["verified", "cancelled", "submitted"]:
+            overdue_count += 1
+
+        if t.status == "submitted":
+            submitted_count += 1
+
+    return open_count, overdue_count, submitted_count
+
+
+def calculate_level_progress(mit_profile_id, level_number):
+    templates = MITLevelTemplate.query.filter_by(level_number=level_number).all()
+    total = len(templates)
+
+    if total == 0:
+        return 0
+
+    template_ids = [item.id for item in templates]
+
+    completed = MITLevelProgress.query.filter(
+        MITLevelProgress.mit_profile_id == mit_profile_id,
+        MITLevelProgress.template_item_id.in_(template_ids),
+        MITLevelProgress.status == "complete",
+    ).count()
+
+    return round((completed / total) * 100)
+
 
 def task_display_status(task):
     if task.status in ["verified", "cancelled"]:
@@ -95,61 +83,6 @@ def task_display_status(task):
         return "overdue"
 
     return task.status
-
-
-def calculate_level_progress(mit_profile_id, level_number):
-    templates = MITLevelTemplate.query.filter_by(
-        level_number=level_number,
-        is_required=True
-    ).all()
-
-    total = len(templates)
-    if total == 0:
-        return 0
-
-    template_ids = [item.id for item in templates]
-
-    completed = MITLevelProgress.query.filter(
-        MITLevelProgress.mit_profile_id == mit_profile_id,
-        MITLevelProgress.template_item_id.in_(template_ids),
-        MITLevelProgress.status == "complete",
-    ).count()
-
-    return round((completed / total) * 100)
-
-
-def calculate_overall_progress(mit_profile_id):
-    templates = MITLevelTemplate.query.filter_by(is_required=True).all()
-
-    total = len(templates)
-    if total == 0:
-        return 0
-
-    template_ids = [item.id for item in templates]
-
-    completed = MITLevelProgress.query.filter(
-        MITLevelProgress.mit_profile_id == mit_profile_id,
-        MITLevelProgress.template_item_id.in_(template_ids),
-        MITLevelProgress.status == "complete",
-    ).count()
-
-    return round((completed / total) * 100)
-
-
-def get_next_target_level(current_level):
-    if current_level == 1:
-        return "2"
-    if current_level == 2:
-        return "3"
-    return "gm"
-
-
-def get_next_promotion_level(current_level):
-    if current_level == 1:
-        return "2"
-    if current_level == 2:
-        return "3"
-    return "gm"
 
 
 def ensure_progress_rows_for_mit(mit_profile):
@@ -175,448 +108,476 @@ def ensure_progress_rows_for_mit(mit_profile):
         db.session.commit()
 
 
-def get_mit_task_counts(mit_profile_id):
-    tasks = MITTask.query.filter_by(mit_profile_id=mit_profile_id).all()
+def get_target_level(current_level):
+    if current_level == 1:
+        return "2"
+    if current_level == 2:
+        return "3"
+    return "gm"
 
-    open_count = 0
-    overdue_count = 0
-    submitted_count = 0
 
+def available_user_roles():
+    return ["mit", "coach", "admin", "training_director"]
+
+
+def should_force_mit_role(user):
+    return user.role not in ["admin", "coach", "training_director"]
+
+
+def get_active_task_map(profile_id, level_number=None):
+    query = MITTask.query.filter(
+        MITTask.mit_profile_id == profile_id,
+        MITTask.related_template_item_id.isnot(None),
+        MITTask.status.in_(["open", "in_progress", "submitted"]),
+    )
+
+    if level_number is not None:
+        templates = MITLevelTemplate.query.filter_by(level_number=level_number).all()
+        template_ids = [item.id for item in templates]
+        if not template_ids:
+            return {}
+        query = query.filter(MITTask.related_template_item_id.in_(template_ids))
+
+    tasks = query.order_by(MITTask.id.desc()).all()
+
+    task_map = {}
     for task in tasks:
-        display_status = task_display_status(task)
+        if task.related_template_item_id not in task_map:
+            task_map[task.related_template_item_id] = task
 
-        if display_status not in ["verified", "cancelled"]:
-            open_count += 1
-
-        if display_status == "overdue":
-            overdue_count += 1
-
-        if task.status == "submitted":
-            submitted_count += 1
-
-    return {
-        "open": open_count,
-        "overdue": overdue_count,
-        "submitted": submitted_count,
-    }
+    return task_map
 
 
-def get_task_counts_map_for_mits(mit_ids):
-    if not mit_ids:
-        return {}
+def get_all_linked_task_map(profile_id):
+    tasks = MITTask.query.filter(
+        MITTask.mit_profile_id == profile_id,
+        MITTask.related_template_item_id.isnot(None),
+    ).order_by(MITTask.id.desc()).all()
 
-    today = date.today()
+    task_map = {}
+    for task in tasks:
+        if task.related_template_item_id not in task_map:
+            task_map[task.related_template_item_id] = task
 
-    rows = db.session.query(
-        MITTask.mit_profile_id,
-        func.sum(
-            case(
-                (MITTask.status.notin_(["verified", "cancelled"]), 1),
-                else_=0,
-            )
-        ).label("open_count"),
-        func.sum(
-            case(
-                (
-                    and_(
-                        MITTask.status.notin_(["verified", "cancelled", "submitted"]),
-                        MITTask.due_date.isnot(None),
-                        MITTask.due_date < today,
-                    ),
-                    1,
-                ),
-                else_=0,
-            )
-        ).label("overdue_count"),
-        func.sum(
-            case(
-                (MITTask.status == "submitted", 1),
-                else_=0,
-            )
-        ).label("submitted_count"),
-    ).filter(
-        MITTask.mit_profile_id.in_(mit_ids)
-    ).group_by(MITTask.mit_profile_id).all()
-
-    counts_map = {
-        mit_id: {
-            "open": int(open_count or 0),
-            "overdue": int(overdue_count or 0),
-            "submitted": int(submitted_count or 0),
-        }
-        for mit_id, open_count, overdue_count, submitted_count in rows
-    }
-
-    for mit_id in mit_ids:
-        counts_map.setdefault(mit_id, {"open": 0, "overdue": 0, "submitted": 0})
-
-    return counts_map
+    return task_map
 
 
-def get_required_template_totals_by_level():
-    rows = db.session.query(
-        MITLevelTemplate.level_number,
-        func.count(MITLevelTemplate.id)
-    ).filter(
-        MITLevelTemplate.is_required.is_(True)
-    ).group_by(MITLevelTemplate.level_number).all()
-
-    return {level_number: int(total or 0) for level_number, total in rows}
-
-
-def get_current_level_progress_map(mits):
-    if not mits:
-        return {}
-
-    mit_ids = [mit.id for mit in mits]
-    totals_by_level = get_required_template_totals_by_level()
-
-    completed_rows = db.session.query(
-        MITLevelProgress.mit_profile_id,
-        MITLevelTemplate.level_number,
-        func.count(MITLevelProgress.id)
-    ).join(
-        MITLevelTemplate,
-        MITLevelProgress.template_item_id == MITLevelTemplate.id
-    ).filter(
-        MITLevelProgress.mit_profile_id.in_(mit_ids),
-        MITLevelTemplate.is_required.is_(True),
-        MITLevelProgress.status == "complete",
-    ).group_by(
-        MITLevelProgress.mit_profile_id,
-        MITLevelTemplate.level_number
-    ).all()
-
-    completed_map = {
-        (mit_profile_id, level_number): int(completed_count or 0)
-        for mit_profile_id, level_number, completed_count in completed_rows
-    }
-
-    progress_map = {}
-    for mit in mits:
-        total = totals_by_level.get(mit.current_level, 0)
-        if total == 0:
-            progress_map[mit.id] = 0
-        else:
-            completed = completed_map.get((mit.id, mit.current_level), 0)
-            progress_map[mit.id] = round((completed / total) * 100)
-
-    return progress_map
-
-
-def refresh_mit_statuses_from_maps(mits, current_level_progress_map, task_counts_map):
-    changed = False
-
-    for mit in mits:
-        if mit.sts_status == "blocked":
-            continue
-
-        current_level_progress = current_level_progress_map.get(mit.id, 0)
-        task_counts = task_counts_map.get(mit.id, {"open": 0, "overdue": 0, "submitted": 0})
-
-        is_ready = (
-            current_level_progress == 100
-            and task_counts["open"] == 0
-            and task_counts["overdue"] == 0
-            and task_counts["submitted"] == 0
-        )
-
-        new_status = mit.sts_status
-        if is_ready:
-            new_status = "ready"
-        elif mit.sts_status in ["ready", "promoted"]:
-            new_status = "on_track"
-
-        if new_status != mit.sts_status:
-            mit.sts_status = new_status
-            changed = True
-
-    return changed
-
-
-def is_mit_ready_for_promotion(mit):
-    current_level_progress = calculate_level_progress(mit.id, mit.current_level)
-    task_counts = get_mit_task_counts(mit.id)
-
-    if mit.sts_status == "blocked":
-        return False
-
-    if current_level_progress != 100:
-        return False
-
-    if task_counts["open"] > 0:
-        return False
-
-    if task_counts["overdue"] > 0:
-        return False
-
-    if task_counts["submitted"] > 0:
-        return False
-
-    return True
-
-
-def refresh_mit_status(mit):
-    if mit.sts_status == "blocked":
+def sync_progress_from_task(task, progress):
+    if not progress:
         return
 
-    if is_mit_ready_for_promotion(mit):
-        mit.sts_status = "ready"
-    else:
-        if mit.sts_status in ["ready", "promoted"]:
-            mit.sts_status = "on_track"
+    if task.status == "verified":
+        progress.status = "complete"
+        progress.completed_date = datetime.utcnow().date()
+        progress.verified_by_user_id = current_user.id
+        task.completed_at = datetime.utcnow()
+        return
 
+    task.completed_at = None
 
-def format_pdf_date(value):
-    if not value:
-        return "-"
-    return value.strftime("%Y-%m-%d")
+    if task.status in ["open", "in_progress", "submitted"]:
+        progress.status = "in_progress"
+        progress.completed_date = None
+        progress.verified_by_user_id = None
+        return
 
-
-def format_pdf_datetime(value):
-    if not value:
-        return "-"
-    return value.strftime("%Y-%m-%d %I:%M %p")
-
-
-def pdf_task_status_label(task):
-    return task_display_status(task).replace("_", " ").title()
-
-
-def build_pdf_task_table(tasks, body_style, small_style):
-    header_style = ParagraphStyle(
-        "MitPdfTableHeader",
-        parent=body_style,
-        fontName="Helvetica-Bold",
-        fontSize=9,
-        leading=11,
-        textColor=colors.white,
-        alignment=TA_LEFT,
-    )
-
-    rows = [[
-        Paragraph("Task", header_style),
-        Paragraph("Priority", header_style),
-        Paragraph("Status", header_style),
-        Paragraph("Due", header_style),
-    ]]
-
-    if not tasks:
-        rows.append([
-            Paragraph("No tasks in this section.", body_style),
-            "",
-            "",
-            "",
-        ])
-    else:
-        for task in tasks:
-            task_lines = [
-                f"<b>{task.title}</b>",
-            ]
-
-            if task.description:
-                task_lines.append(
-                    f"<font color='#5b6474'>{task.description}</font>"
-                )
-
-            if task.assigned_by_user:
-                task_lines.append(
-                    f"<font color='#6b7280'>Assigned by: {task.assigned_by_user.name}</font>"
-                )
-
-            if task.notes:
-                safe_notes = task.notes.replace("\n", "<br/>")
-                task_lines.append(
-                    f"<font color='#6b7280'>Notes: {safe_notes}</font>"
-                )
-
-            if task.completed_at:
-                task_lines.append(
-                    f"<font color='#6b7280'>Completed: {format_pdf_datetime(task.completed_at)}</font>"
-                )
-
-            rows.append([
-                Paragraph("<br/>".join(task_lines), small_style),
-                Paragraph((task.priority or "-").title(), body_style),
-                Paragraph(pdf_task_status_label(task), body_style),
-                Paragraph(format_pdf_date(task.due_date), body_style),
-            ])
-
-    table = Table(
-        rows,
-        colWidths=[4.35 * inch, 0.85 * inch, 1.0 * inch, 0.9 * inch],
-        repeatRows=1,
-    )
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 9),
-        ("BACKGROUND", (0, 1), (-1, -1), colors.white),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
-        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d1d5db")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-    ]))
-    return table
+    if task.status == "cancelled":
+        if progress.status != "complete":
+            progress.status = "not_started"
+            progress.completed_date = None
+            progress.verified_by_user_id = None
 
 
 # --------------------------------------------------
-# DASHBOARD / CORE PAGES
+# USERS
 # --------------------------------------------------
 
-@mit_sts_bp.route("/my-mit")
+@mit_sts_bp.route("/users")
 @login_required
-def my_mit():
-    mit = MITProfile.query.filter_by(user_id=current_user.id).first()
+def list_users():
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
-    if not mit:
-        flash("No MIT profile found for your account.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    q = request.args.get("q", "").strip()
+    selected_role = request.args.get("role", "").strip()
+    selected_store = request.args.get("store", "").strip()
 
-    return redirect(url_for("mit_sts.view_mit", mit_id=mit.id))
+    query = User.query
+
+    if q:
+        query = query.filter(
+            db.or_(
+                User.name.ilike(f"%{q}%"),
+                User.username.ilike(f"%{q}%")
+            )
+        )
+
+    if selected_role:
+        query = query.filter(User.role == selected_role)
+
+    if selected_store:
+        query = query.filter(User.store_number == selected_store)
+
+    users = query.order_by(User.name.asc()).all()
+
+    return render_template(
+        "mit_sts/users.html",
+        users=users,
+        q=q,
+        selected_role=selected_role,
+        selected_store=selected_store,
+        roles=available_user_roles(),
+        user=current_user,
+    )
 
 
-@mit_sts_bp.route("/")
+@mit_sts_bp.route("/users/<int:user_id>")
 @login_required
-def dashboard():
-    if not is_leadership():
-        return redirect(url_for("mit_sts.my_mit"))
+def view_user(user_id):
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
-    mits = MITProfile.query.options(
-        joinedload(MITProfile.mit_user),
-        joinedload(MITProfile.coach_user),
-    ).order_by(MITProfile.created_at.desc()).all()
+    user_item = User.query.get_or_404(user_id)
+    mit_profile = user_item.mit_profiles[0] if user_item.mit_profiles else None
 
-    mit_ids = [mit.id for mit in mits]
-    current_level_progress_map = get_current_level_progress_map(mits)
-    task_counts_map = get_task_counts_map_for_mits(mit_ids)
+    return render_template(
+        "mit_sts/user_detail.html",
+        user_item=user_item,
+        mit_profile=mit_profile,
+        user=current_user,
+    )
 
-    changed = refresh_mit_statuses_from_maps(mits, current_level_progress_map, task_counts_map)
-    if changed:
+
+@mit_sts_bp.route("/users/new", methods=["GET", "POST"])
+@login_required
+def new_user():
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        username = request.form.get("username", "").strip()
+        role = request.form.get("role", "mit").strip()
+        store_number = request.form.get("store_number", "").strip()
+        password = request.form.get("password", "").strip()
+        is_active_user = request.form.get("is_active_user") == "1"
+
+        if not name or not username or not password:
+            flash("Name, username, and password are required.", "danger")
+            return render_template(
+                "mit_sts/user_form.html",
+                page_title="Create User",
+                submit_label="Create User",
+                user_item=None,
+                roles=available_user_roles(),
+                user=current_user,
+            )
+
+        if role not in available_user_roles():
+            role = "mit"
+
+        existing = User.query.filter_by(username=username).first()
+        if existing:
+            flash("That username already exists.", "danger")
+            return render_template(
+                "mit_sts/user_form.html",
+                page_title="Create User",
+                submit_label="Create User",
+                user_item=None,
+                roles=available_user_roles(),
+                user=current_user,
+            )
+
+        user_item = User(
+            name=name,
+            username=username,
+            role=role,
+            store_number=store_number or None,
+            is_active_user=is_active_user,
+        )
+        user_item.set_password(password)
+
+        db.session.add(user_item)
         db.session.commit()
 
-    total_mits = len(mits)
-    level_1_count = sum(1 for mit in mits if mit.current_level == 1)
-    level_2_count = sum(1 for mit in mits if mit.current_level == 2)
-    level_3_count = sum(1 for mit in mits if mit.current_level == 3)
+        flash("User created successfully.", "success")
+        return redirect(url_for("mit_sts.list_users"))
 
-    ready_count = sum(1 for mit in mits if mit.sts_status == "ready")
-    blocked_count = sum(1 for mit in mits if mit.sts_status == "blocked")
-    overdue_tasks_count = sum(counts["overdue"] for counts in task_counts_map.values())
-    submitted_tasks_count = sum(counts["submitted"] for counts in task_counts_map.values())
+    return render_template(
+        "mit_sts/user_form.html",
+        page_title="Create User",
+        submit_label="Create User",
+        user_item=None,
+        roles=available_user_roles(),
+        user=current_user,
+    )
+
+
+@mit_sts_bp.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_user(user_id):
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
+
+    user_item = User.query.get_or_404(user_id)
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        username = request.form.get("username", "").strip()
+        role = request.form.get("role", "mit").strip()
+        store_number = request.form.get("store_number", "").strip()
+        password = request.form.get("password", "").strip()
+        is_active_user = request.form.get("is_active_user") == "1"
+
+        if not name or not username:
+            flash("Name and username are required.", "danger")
+            return render_template(
+                "mit_sts/user_form.html",
+                page_title="Edit User",
+                submit_label="Save Changes",
+                user_item=user_item,
+                roles=available_user_roles(),
+                user=current_user,
+            )
+
+        existing = User.query.filter(User.username == username, User.id != user_item.id).first()
+        if existing:
+            flash("That username already exists.", "danger")
+            return render_template(
+                "mit_sts/user_form.html",
+                page_title="Edit User",
+                submit_label="Save Changes",
+                user_item=user_item,
+                roles=available_user_roles(),
+                user=current_user,
+            )
+
+        if role not in available_user_roles():
+            role = "mit"
+
+        user_item.name = name
+        user_item.username = username
+        user_item.role = role
+        user_item.store_number = store_number or None
+        user_item.is_active_user = is_active_user
+
+        if password:
+            user_item.set_password(password)
+
+        linked_mit = user_item.mit_profiles[0] if user_item.mit_profiles else None
+        if linked_mit and store_number:
+            linked_mit.store_number = store_number
+
+        db.session.commit()
+
+        flash("User updated successfully.", "success")
+        return redirect(url_for("mit_sts.view_user", user_id=user_item.id))
+
+    return render_template(
+        "mit_sts/user_form.html",
+        page_title="Edit User",
+        submit_label="Save Changes",
+        user_item=user_item,
+        roles=available_user_roles(),
+        user=current_user,
+    )
+
+
+# --------------------------------------------------
+# DASHBOARD
+# --------------------------------------------------
+
+@mit_sts_bp.route("/")
+@mit_sts_bp.route("/dashboard")
+@login_required
+def dashboard():
+    if not is_coach():
+        return redirect(url_for("mit_sts.my_mit"))
+
+    mits = (
+        MITProfile.query
+        .join(User, MITProfile.user_id == User.id)
+        .filter(User.is_active_user == True)
+        .order_by(MITProfile.created_at.desc())
+        .all()
+    )
+
+    overdue_tasks_count = 0
+    submitted_tasks_count = 0
+    recent_progress_map = {}
+
+    level_1_count = 0
+    level_2_count = 0
+    level_3_count = 0
+    ready_count = 0
+    blocked_count = 0
+
+    for mit in mits:
+        if getattr(mit, "current_level", None) == 1:
+            level_1_count += 1
+        elif getattr(mit, "current_level", None) == 2:
+            level_2_count += 1
+        elif getattr(mit, "current_level", None) == 3:
+            level_3_count += 1
+
+        if getattr(mit, "sts_status", None) == "ready":
+            ready_count += 1
+        elif getattr(mit, "sts_status", None) == "blocked":
+            blocked_count += 1
+
+        _, overdue, submitted = get_task_counts(mit.id)
+        overdue_tasks_count += overdue
+        submitted_tasks_count += submitted
+
+        current_level = getattr(mit, "current_level", 1) or 1
+        recent_progress_map[mit.id] = calculate_level_progress(mit.id, current_level)
 
     recent_mits = mits[:5]
-    recent_progress_map = {
-        mit.id: current_level_progress_map.get(mit.id, 0)
-        for mit in recent_mits
-    }
 
     return render_template(
         "mit_sts/dashboard.html",
-        total_mits=total_mits,
+        mits=mits,
+        overdue_tasks_count=overdue_tasks_count,
+        submitted_tasks_count=submitted_tasks_count,
+        total_mits=len(mits),
+        ready_count=ready_count,
+        blocked_count=blocked_count,
         level_1_count=level_1_count,
         level_2_count=level_2_count,
         level_3_count=level_3_count,
-        ready_count=ready_count,
-        blocked_count=blocked_count,
-        overdue_tasks_count=overdue_tasks_count,
-        submitted_tasks_count=submitted_tasks_count,
         recent_mits=recent_mits,
         recent_progress_map=recent_progress_map,
         user=current_user,
     )
 
 
-@mit_sts_bp.route("/promotion-queue")
+# --------------------------------------------------
+# TEMPLATE LIBRARY
+# --------------------------------------------------
+
+@mit_sts_bp.route("/templates")
 @login_required
-def promotion_queue():
-    if not is_leadership():
-        flash("You do not have permission to access the promotion queue.", "danger")
-        return redirect(url_for("academy.dashboard"))
+def template_library():
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
-    mits = MITProfile.query.order_by(MITProfile.updated_at.desc()).all()
-    ready_mits = []
+    templates = MITLevelTemplate.query.order_by(
+        MITLevelTemplate.level_number.asc(),
+        MITLevelTemplate.category.asc(),
+        MITLevelTemplate.sort_order.asc(),
+        MITLevelTemplate.id.asc(),
+    ).all()
 
-    for mit in mits:
-        refresh_mit_status(mit)
-        progress = calculate_level_progress(mit.id, mit.current_level)
-
-        if is_mit_ready_for_promotion(mit):
-            ready_mits.append((mit, progress, get_next_promotion_level(mit.current_level)))
-
-    db.session.commit()
+    grouped_templates = defaultdict(list)
+    for item in templates:
+        grouped_templates[item.level_number].append(item)
 
     return render_template(
-        "mit_sts/promotion_queue.html",
-        ready_mits=ready_mits,
+        "mit_sts/template_library.html",
+        templates=templates,
+        grouped_templates=dict(grouped_templates),
         user=current_user,
     )
 
 
-@mit_sts_bp.route("/mits/<int:mit_id>/promote", methods=["POST"])
+@mit_sts_bp.route("/templates/new", methods=["GET", "POST"])
 @login_required
-def promote_mit(mit_id):
-    if not is_leadership():
-        flash("You do not have permission to promote MITs.", "danger")
-        return redirect(url_for("academy.dashboard"))
+def new_template_item():
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
-    mit = MITProfile.query.get_or_404(mit_id)
+    if request.method == "POST":
+        level_number = request.form.get("level_number", "1")
+        item_name = request.form.get("item_name", "").strip()
 
-    if not is_mit_ready_for_promotion(mit):
-        flash("This MIT is not ready for promotion yet.", "danger")
-        return redirect(url_for("mit_sts.view_mit", mit_id=mit.id))
+        if not item_name:
+            flash("Item name is required.", "danger")
+            return redirect(url_for("mit_sts.new_template_item"))
 
-    to_level = get_next_promotion_level(mit.current_level)
+        item = MITLevelTemplate(
+            level_number=int(level_number),
+            item_name=item_name,
+            category=request.form.get("category") or None,
+            item_description=request.form.get("item_description") or None,
+            sort_order=int(request.form.get("sort_order") or 0),
+            source_ref=request.form.get("source_ref") or None,
+            is_required=request.form.get("is_required") == "on",
+        )
+        db.session.add(item)
+        db.session.commit()
 
-    effective_date_raw = request.form.get("effective_date", "").strip()
-    note = request.form.get("note", "").strip()
+        flash("Template created", "success")
+        return redirect(url_for("mit_sts.template_library"))
 
-    effective_date = date.today()
-    if effective_date_raw:
-        try:
-            effective_date = datetime.strptime(effective_date_raw, "%Y-%m-%d").date()
-        except ValueError:
-            pass
-
-    promotion = MITPromotion(
-        mit_profile_id=mit.id,
-        from_level=mit.current_level,
-        to_level=to_level,
-        approved_by_user_id=current_user.id,
-        effective_date=effective_date,
-        note=note or None,
+    return render_template(
+        "mit_sts/template_form.html",
+        page_title="Create STS Item",
+        submit_label="Create STS Item",
+        item=None,
+        user=current_user,
     )
-    db.session.add(promotion)
 
-    if mit.current_level == 1:
-        mit.current_level = 2
-        mit.target_level = "3"
-    elif mit.current_level == 2:
-        mit.current_level = 3
-        mit.target_level = "gm"
-    else:
-        mit.target_level = "gm"
 
-    mit.sts_status = "promoted"
-    mit.last_review_date = effective_date
+@mit_sts_bp.route("/templates/<int:item_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_template_item(item_id):
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
-    ensure_progress_rows_for_mit(mit)
+    item = MITLevelTemplate.query.get_or_404(item_id)
+
+    if request.method == "POST":
+        item_name = request.form.get("item_name", "").strip()
+
+        if not item_name:
+            flash("Item name is required.", "danger")
+            return redirect(url_for("mit_sts.edit_template_item", item_id=item.id))
+
+        item.level_number = int(request.form.get("level_number") or item.level_number)
+        item.item_name = item_name
+        item.category = request.form.get("category") or None
+        item.item_description = request.form.get("item_description") or None
+        item.sort_order = int(request.form.get("sort_order") or 0)
+        item.source_ref = request.form.get("source_ref") or None
+        item.is_required = request.form.get("is_required") == "on"
+
+        db.session.commit()
+
+        flash("Template updated", "success")
+        return redirect(url_for("mit_sts.template_library"))
+
+    return render_template(
+        "mit_sts/template_form.html",
+        page_title="Edit STS Item",
+        submit_label="Save Changes",
+        item=item,
+        user=current_user,
+    )
+
+
+@mit_sts_bp.route("/templates/<int:item_id>/delete", methods=["POST"])
+@login_required
+def delete_template_item(item_id):
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
+
+    item = MITLevelTemplate.query.get_or_404(item_id)
+    db.session.delete(item)
     db.session.commit()
 
-    flash(f"{mit.mit_user.name} promoted successfully.", "success")
-    return redirect(url_for("mit_sts.view_mit", mit_id=mit.id))
+    flash("Template deleted", "success")
+    return redirect(url_for("mit_sts.template_library"))
 
 
-@mit_sts_bp.route("/mits")
+# --------------------------------------------------
+# MIT LIST
+# --------------------------------------------------
+
+@mit_sts_bp.route("/list")
 @login_required
 def list_mits():
-    if not is_leadership():
-        return redirect(url_for("mit_sts.my_mit"))
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
     q = request.args.get("q", "").strip()
     store = request.args.get("store", "").strip()
@@ -625,10 +586,11 @@ def list_mits():
     coach = request.args.get("coach", "").strip()
     task_filter = request.args.get("task_filter", "").strip()
 
-    query = MITProfile.query.options(
-        joinedload(MITProfile.mit_user),
-        joinedload(MITProfile.coach_user),
-    ).join(User, MITProfile.user_id == User.id)
+    query = (
+        MITProfile.query
+        .join(User, MITProfile.user_id == User.id)
+        .filter(User.is_active_user == True)
+    )
 
     if q:
         query = query.filter(User.name.ilike(f"%{q}%"))
@@ -651,31 +613,41 @@ def list_mits():
         except ValueError:
             pass
 
-    mits = query.order_by(User.name.asc()).all()
-    mit_ids = [mit.id for mit in mits]
+    mits = query.all()
 
-    task_counts_map = get_task_counts_map_for_mits(mit_ids)
-    current_level_progress_map = get_current_level_progress_map(mits)
-
-    changed = refresh_mit_statuses_from_maps(mits, current_level_progress_map, task_counts_map)
+    progress_map = {}
+    task_counts_map = {}
 
     filtered_mits = []
+    total_overdue = 0
+    total_open = 0
+    total_submitted = 0
+
     for mit in mits:
-        counts = task_counts_map.get(mit.id, {"open": 0, "overdue": 0, "submitted": 0})
+        current_level = getattr(mit, "current_level", 1) or 1
+        progress_map[mit.id] = calculate_level_progress(mit.id, current_level)
+
+        open_count, overdue_count, submitted_count = get_task_counts(mit.id)
+        task_counts_map[mit.id] = {
+            "open": open_count,
+            "overdue": overdue_count,
+            "submitted": submitted_count,
+        }
+
+        total_overdue += overdue_count
+        total_open += open_count
+        total_submitted += submitted_count
 
         include = True
-        if task_filter == "open" and counts["open"] == 0:
+        if task_filter == "open" and open_count == 0:
             include = False
-        elif task_filter == "overdue" and counts["overdue"] == 0:
+        elif task_filter == "overdue" and overdue_count == 0:
             include = False
-        elif task_filter == "submitted" and counts["submitted"] == 0:
+        elif task_filter == "submitted" and submitted_count == 0:
             include = False
 
         if include:
             filtered_mits.append(mit)
-
-    if changed:
-        db.session.commit()
 
     mits = filtered_mits
 
@@ -692,21 +664,12 @@ def list_mits():
         User.role.in_(["coach", "admin", "training_director"])
     ).order_by(User.name.asc()).all()
 
-    progress_map = {
-        mit.id: current_level_progress_map.get(mit.id, 0)
-        for mit in mits
-    }
-
-    total_overdue = sum(v.get("overdue", 0) for v in task_counts_map.values())
-    total_open = sum(v.get("open", 0) for v in task_counts_map.values())
-    total_submitted = sum(v.get("submitted", 0) for v in task_counts_map.values())
-
     if total_overdue > 0:
         doughy_message = f"You have {total_overdue} overdue task{'s' if total_overdue != 1 else ''}. Start there first."
     elif total_submitted > 0:
-        doughy_message = f"{total_submitted} task{'s' if total_submitted != 1 else ''} {'are' if total_submitted != 1 else 'is'} waiting for review."
+        doughy_message = f"{total_submitted} task{'s' if total_submitted != 1 else ''} waiting for review."
     elif total_open > 0:
-        doughy_message = f"{total_open} open task{'s' if total_open != 1 else ''} in progress — keep it moving."
+        doughy_message = f"{total_open} open task{'s' if total_open != 1 else ''} in progress."
     else:
         doughy_message = "All MIT tasks are clean. Time to assign new work."
 
@@ -729,15 +692,14 @@ def list_mits():
 
 
 # --------------------------------------------------
-# MIT PROFILE CRUD
+# CREATE MIT
 # --------------------------------------------------
 
-@mit_sts_bp.route("/mits/new", methods=["GET", "POST"])
+@mit_sts_bp.route("/new", methods=["GET", "POST"])
 @login_required
 def new_mit():
-    if not is_leadership():
-        flash("You do not have permission to create MIT profiles.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
     users = User.query.order_by(User.name.asc()).all()
     coaches = User.query.filter(
@@ -745,7 +707,7 @@ def new_mit():
     ).order_by(User.name.asc()).all()
 
     if request.method == "POST":
-        user_id = request.form.get("user_id", "").strip()
+        user_source = request.form.get("user_source", "existing").strip()
         store_number = request.form.get("store_number", "").strip()
         coach_user_id = request.form.get("coach_user_id", "").strip()
         current_level = request.form.get("current_level", "1").strip()
@@ -754,19 +716,94 @@ def new_mit():
         next_review_date = request.form.get("next_review_date", "").strip()
         notes = request.form.get("notes", "").strip()
 
-        if not user_id:
-            flash("MIT user is required.", "danger")
-            return redirect(url_for("mit_sts.new_mit"))
+        user = None
 
-        existing = MITProfile.query.filter_by(user_id=int(user_id)).first()
-        if existing:
+        if user_source == "new":
+            new_name = request.form.get("new_name", "").strip()
+            new_username = request.form.get("new_username", "").strip()
+            new_password = request.form.get("new_password", "").strip()
+
+            if not new_name or not new_username or not new_password:
+                flash("New MIT name, username, and temporary password are required.", "danger")
+                return render_template(
+                    "mit_sts/mit_form.html",
+                    page_title="Create MIT Profile",
+                    submit_label="Create MIT Profile",
+                    mit=None,
+                    users=users,
+                    coaches=coaches,
+                    user=current_user,
+                )
+
+            existing_user = User.query.filter_by(username=new_username).first()
+            if existing_user:
+                flash("That username already exists.", "danger")
+                return render_template(
+                    "mit_sts/mit_form.html",
+                    page_title="Create MIT Profile",
+                    submit_label="Create MIT Profile",
+                    mit=None,
+                    users=users,
+                    coaches=coaches,
+                    user=current_user,
+                )
+
+            user = User(
+                name=new_name,
+                username=new_username,
+                role="mit",
+                store_number=store_number or None,
+                is_active_user=True,
+            )
+            user.set_password(new_password)
+            db.session.add(user)
+            db.session.flush()
+
+        else:
+            user_id = request.form.get("user_id", "").strip()
+
+            if not user_id:
+                flash("MIT user is required.", "danger")
+                return render_template(
+                    "mit_sts/mit_form.html",
+                    page_title="Create MIT Profile",
+                    submit_label="Create MIT Profile",
+                    mit=None,
+                    users=users,
+                    coaches=coaches,
+                    user=current_user,
+                )
+
+            user = User.query.get(int(user_id))
+            if not user:
+                flash("Selected user was not found.", "danger")
+                return render_template(
+                    "mit_sts/mit_form.html",
+                    page_title="Create MIT Profile",
+                    submit_label="Create MIT Profile",
+                    mit=None,
+                    users=users,
+                    coaches=coaches,
+                    user=current_user,
+                )
+
+        existing_profile = MITProfile.query.filter_by(user_id=user.id).first()
+        if existing_profile:
             flash("This user already has an MIT STS profile.", "danger")
-            return redirect(url_for("mit_sts.new_mit"))
+            return render_template(
+                "mit_sts/mit_form.html",
+                page_title="Create MIT Profile",
+                submit_label="Create MIT Profile",
+                mit=None,
+                users=users,
+                coaches=coaches,
+                user=current_user,
+            )
 
         try:
-            current_level = int(current_level)
+            current_level_int = int(current_level)
         except ValueError:
-            current_level = 1
+            current_level_int = 1
 
         start_date_obj = None
         if start_date:
@@ -782,12 +819,17 @@ def new_mit():
             except ValueError:
                 pass
 
+        if should_force_mit_role(user):
+            user.role = "mit"
+        if store_number:
+            user.store_number = store_number
+
         mit = MITProfile(
-            user_id=int(user_id),
+            user_id=user.id,
             store_number=store_number or None,
             coach_user_id=int(coach_user_id) if coach_user_id else None,
-            current_level=current_level,
-            target_level=get_next_target_level(current_level),
+            current_level=current_level_int,
+            target_level=get_target_level(current_level_int),
             start_date=start_date_obj,
             sts_status=sts_status or "on_track",
             next_review_date=next_review_date_obj,
@@ -798,8 +840,6 @@ def new_mit():
         db.session.commit()
 
         ensure_progress_rows_for_mit(mit)
-        refresh_mit_status(mit)
-        db.session.commit()
 
         flash("MIT profile created successfully.", "success")
         return redirect(url_for("mit_sts.view_mit", mit_id=mit.id))
@@ -815,12 +855,224 @@ def new_mit():
     )
 
 
-@mit_sts_bp.route("/mits/<int:mit_id>/edit", methods=["GET", "POST"])
+# --------------------------------------------------
+# MY MIT
+# --------------------------------------------------
+
+@mit_sts_bp.route("/my")
+@login_required
+def my_mit():
+    profile = MITProfile.query.filter_by(user_id=current_user.id).first()
+
+    if profile:
+        return redirect(url_for("mit_sts.view_mit", mit_id=profile.id))
+
+    if is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
+
+    flash("No MIT profile found.", "danger")
+    return redirect(url_for("auth.logout"))
+
+
+# --------------------------------------------------
+# VIEW MIT
+# --------------------------------------------------
+
+@mit_sts_bp.route("/<int:mit_id>")
+@login_required
+def view_mit(mit_id):
+    profile = MITProfile.query.get_or_404(mit_id)
+
+    if not is_coach() and profile.user_id != current_user.id:
+        return redirect(url_for("mit_sts.dashboard"))
+
+    ensure_progress_rows_for_mit(profile)
+
+    level_1_progress = calculate_level_progress(profile.id, 1)
+    level_2_progress = calculate_level_progress(profile.id, 2)
+    level_3_progress = calculate_level_progress(profile.id, 3)
+
+    overall_progress = 0
+    all_templates = MITLevelTemplate.query.all()
+    if all_templates:
+        all_template_ids = [item.id for item in all_templates]
+        completed_total = MITLevelProgress.query.filter(
+            MITLevelProgress.mit_profile_id == profile.id,
+            MITLevelProgress.template_item_id.in_(all_template_ids),
+            MITLevelProgress.status == "complete",
+        ).count()
+        overall_progress = round((completed_total / len(all_templates)) * 100)
+
+    incomplete_count = MITLevelProgress.query.join(
+        MITLevelTemplate,
+        MITLevelProgress.template_item_id == MITLevelTemplate.id
+    ).filter(
+        MITLevelProgress.mit_profile_id == profile.id,
+        MITLevelTemplate.level_number == profile.current_level,
+        MITLevelProgress.status != "complete"
+    ).count()
+
+    open_tasks_count, overdue_tasks_count, submitted_tasks_count = get_task_counts(profile.id)
+
+    promotions = MITPromotion.query.filter_by(
+        mit_profile_id=profile.id
+    ).order_by(MITPromotion.effective_date.desc()).all()
+
+    return render_template(
+        "mit_sts/mit_detail.html",
+        mit=profile,
+        profile=profile,
+        level_1_progress=level_1_progress,
+        level_2_progress=level_2_progress,
+        level_3_progress=level_3_progress,
+        overall_progress=overall_progress,
+        incomplete_count=incomplete_count,
+        open_tasks_count=open_tasks_count,
+        overdue_tasks_count=overdue_tasks_count,
+        submitted_tasks_count=submitted_tasks_count,
+        promotions=promotions,
+        user=current_user,
+        can_edit=is_coach(),
+        can_manage_templates=is_coach(),
+    )
+
+
+# --------------------------------------------------
+# VIEW LEVEL
+# --------------------------------------------------
+
+@mit_sts_bp.route("/mits/<int:mit_id>/level/<int:level_number>")
+@login_required
+def view_level(mit_id, level_number):
+    if level_number not in [1, 2, 3]:
+        flash("Invalid level.", "danger")
+        return redirect(url_for("mit_sts.view_mit", mit_id=mit_id))
+
+    profile = MITProfile.query.get_or_404(mit_id)
+
+    if not is_coach() and profile.user_id != current_user.id:
+        return redirect(url_for("mit_sts.dashboard"))
+
+    ensure_progress_rows_for_mit(profile)
+
+    templates = MITLevelTemplate.query.filter_by(level_number=level_number).order_by(
+        MITLevelTemplate.category.asc(),
+        MITLevelTemplate.sort_order.asc(),
+        MITLevelTemplate.id.asc(),
+    ).all()
+
+    progress_rows = MITLevelProgress.query.filter_by(mit_profile_id=profile.id).all()
+    progress_map = {row.template_item_id: row for row in progress_rows}
+
+    grouped_items = defaultdict(list)
+    for template in templates:
+        grouped_items[template.category or "General"].append(template)
+
+    active_task_map = get_active_task_map(profile.id, level_number=level_number)
+    all_linked_task_map = get_all_linked_task_map(profile.id)
+
+    level_progress = calculate_level_progress(profile.id, level_number)
+    is_complete = level_progress == 100 and len(templates) > 0
+
+    return render_template(
+        "mit_sts/level_detail.html",
+        mit=profile,
+        level_number=level_number,
+        grouped_items=dict(grouped_items),
+        progress_map=progress_map,
+        active_task_map=active_task_map,
+        all_linked_task_map=all_linked_task_map,
+        level_progress=level_progress,
+        is_complete=is_complete,
+        task_display_status=task_display_status,
+        user=current_user,
+        can_edit=is_coach(),
+        can_manage_templates=is_coach(),
+    )
+
+
+# --------------------------------------------------
+# UPDATE PROGRESS
+# --------------------------------------------------
+
+@mit_sts_bp.route("/progress/<int:progress_id>/status", methods=["POST"])
+@login_required
+def update_progress(progress_id):
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
+
+    progress = MITLevelProgress.query.get_or_404(progress_id)
+    new_status = request.form.get("status", "not_started").strip()
+
+    if new_status not in ["not_started", "in_progress", "complete"]:
+        flash("Invalid status.", "danger")
+        template = MITLevelTemplate.query.get(progress.template_item_id)
+        return redirect(
+            url_for(
+                "mit_sts.view_level",
+                mit_id=progress.mit_profile_id,
+                level_number=template.level_number if template else 1,
+            )
+        )
+
+    progress.status = new_status
+
+    notes = request.form.get("notes", "").strip()
+    if notes:
+        progress.notes = notes
+
+    linked_tasks = MITTask.query.filter_by(
+        mit_profile_id=progress.mit_profile_id,
+        related_template_item_id=progress.template_item_id,
+    ).order_by(MITTask.id.desc()).all()
+
+    if new_status == "complete":
+        progress.completed_date = datetime.utcnow().date()
+        progress.verified_by_user_id = current_user.id
+
+        for task in linked_tasks:
+            if task.status != "cancelled":
+                task.status = "verified"
+                task.completed_at = datetime.utcnow()
+    elif new_status == "in_progress":
+        progress.completed_date = None
+        progress.verified_by_user_id = None
+
+        for task in linked_tasks:
+            if task.status not in ["cancelled", "verified"]:
+                task.status = "in_progress"
+                task.completed_at = None
+    else:
+        progress.completed_date = None
+        progress.verified_by_user_id = None
+
+        for task in linked_tasks:
+            if task.status != "cancelled":
+                task.status = "open"
+                task.completed_at = None
+
+    db.session.commit()
+
+    template = MITLevelTemplate.query.get(progress.template_item_id)
+    flash("STS item updated.", "success")
+    return redirect(
+        url_for(
+            "mit_sts.view_level",
+            mit_id=progress.mit_profile_id,
+            level_number=template.level_number if template else 1,
+        )
+    )
+
+
+# --------------------------------------------------
+# EDIT MIT
+# --------------------------------------------------
+
+@mit_sts_bp.route("/<int:mit_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_mit(mit_id):
-    if not is_leadership():
-        flash("You do not have permission to edit MIT profiles.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
     mit = MITProfile.query.get_or_404(mit_id)
     users = User.query.order_by(User.name.asc()).all()
@@ -829,7 +1081,14 @@ def edit_mit(mit_id):
     ).order_by(User.name.asc()).all()
 
     if request.method == "POST":
-        mit.user_id = int(request.form.get("user_id", mit.user_id))
+        user_id_raw = request.form.get("user_id", "").strip()
+        if user_id_raw:
+            target_user = User.query.get(int(user_id_raw))
+            if target_user:
+                mit.user_id = target_user.id
+                if should_force_mit_role(target_user):
+                    target_user.role = "mit"
+
         mit.store_number = request.form.get("store_number", "").strip() or None
 
         coach_user_id = request.form.get("coach_user_id", "").strip()
@@ -840,7 +1099,7 @@ def edit_mit(mit_id):
         except ValueError:
             pass
 
-        mit.target_level = get_next_target_level(mit.current_level)
+        mit.target_level = get_target_level(mit.current_level)
         mit.sts_status = request.form.get("sts_status", mit.sts_status).strip() or mit.sts_status
         mit.notes = request.form.get("notes", "").strip() or None
 
@@ -862,9 +1121,10 @@ def edit_mit(mit_id):
         else:
             mit.next_review_date = None
 
-        refresh_mit_status(mit)
+        if mit.mit_user and mit.store_number:
+            mit.mit_user.store_number = mit.store_number
+
         db.session.commit()
-        ensure_progress_rows_for_mit(mit)
 
         flash("MIT profile updated successfully.", "success")
         return redirect(url_for("mit_sts.view_mit", mit_id=mit.id))
@@ -880,449 +1140,74 @@ def edit_mit(mit_id):
     )
 
 
-@mit_sts_bp.route("/mits/<int:mit_id>")
-@login_required
-def view_mit(mit_id):
-    mit = MITProfile.query.get_or_404(mit_id)
-
-    if not can_view_mit(mit):
-        flash("You do not have permission to view that MIT profile.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    ensure_progress_rows_for_mit(mit)
-    refresh_mit_status(mit)
-    db.session.commit()
-
-    level_1_progress = calculate_level_progress(mit.id, 1)
-    level_2_progress = calculate_level_progress(mit.id, 2)
-    level_3_progress = calculate_level_progress(mit.id, 3)
-    overall_progress = calculate_overall_progress(mit.id)
-
-    incomplete_count = MITLevelProgress.query.join(
-        MITLevelTemplate,
-        MITLevelProgress.template_item_id == MITLevelTemplate.id
-    ).filter(
-        MITLevelProgress.mit_profile_id == mit.id,
-        MITLevelTemplate.level_number == mit.current_level,
-        MITLevelProgress.status != "complete"
-    ).count()
-
-    task_counts = get_mit_task_counts(mit.id)
-    promotions = MITPromotion.query.filter_by(mit_profile_id=mit.id).order_by(
-        MITPromotion.effective_date.desc()
-    ).all()
-
-    return render_template(
-        "mit_sts/mit_detail.html",
-        mit=mit,
-        level_1_progress=level_1_progress,
-        level_2_progress=level_2_progress,
-        level_3_progress=level_3_progress,
-        overall_progress=overall_progress,
-        incomplete_count=incomplete_count,
-        open_tasks_count=task_counts["open"],
-        overdue_tasks_count=task_counts["overdue"],
-        submitted_tasks_count=task_counts["submitted"],
-        promotions=promotions,
-        user=current_user,
-        can_edit=can_edit_mit(),
-        can_manage_templates=can_manage_templates(),
-    )
-
-
 # --------------------------------------------------
-# TASK PDF EXPORT
-# --------------------------------------------------
-
-@mit_sts_bp.route("/mits/<int:mit_id>/tasks/pdf")
-@login_required
-def export_tasks_pdf(mit_id):
-    mit = MITProfile.query.get_or_404(mit_id)
-
-    if not can_view_mit(mit):
-        flash("You do not have permission to export that MIT task sheet.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    tasks = MITTask.query.filter_by(mit_profile_id=mit.id).order_by(
-        MITTask.due_date.asc(),
-        MITTask.created_at.desc()
-    ).all()
-
-    active_tasks = []
-    completed_tasks = []
-
-    for task in tasks:
-        display_status = task_display_status(task)
-        if display_status in ["verified", "cancelled"]:
-            completed_tasks.append(task)
-        else:
-            active_tasks.append(task)
-
-    task_counts = get_mit_task_counts(mit.id)
-    overall_progress = calculate_overall_progress(mit.id)
-
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=0.5 * inch,
-        leftMargin=0.5 * inch,
-        topMargin=0.5 * inch,
-        bottomMargin=0.5 * inch,
-        title=f"mit_{mit.mit_user.name.strip().replace(' ', '_').lower()}_tasks.pdf",
-        author="Boston Pie Academy",
-    )
-
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "MitPdfTitle",
-        parent=styles["Heading1"],
-        fontName="Helvetica-Bold",
-        fontSize=22,
-        leading=26,
-        textColor=colors.HexColor("#0f172a"),
-        spaceAfter=4,
-    )
-    subtitle_style = ParagraphStyle(
-        "MitPdfSubtitle",
-        parent=styles["BodyText"],
-        fontName="Helvetica",
-        fontSize=11,
-        leading=14,
-        textColor=colors.HexColor("#334155"),
-        spaceAfter=2,
-    )
-    subtle_style = ParagraphStyle(
-        "MitPdfSubtle",
-        parent=styles["BodyText"],
-        fontName="Helvetica",
-        fontSize=8.5,
-        leading=11,
-        textColor=colors.HexColor("#64748b"),
-        spaceAfter=0,
-    )
-    section_style = ParagraphStyle(
-        "MitPdfSection",
-        parent=styles["Heading2"],
-        fontName="Helvetica-Bold",
-        fontSize=12.5,
-        leading=16,
-        textColor=colors.HexColor("#0f172a"),
-        spaceBefore=8,
-        spaceAfter=6,
-    )
-    body_style = ParagraphStyle(
-        "MitPdfBody",
-        parent=styles["BodyText"],
-        fontName="Helvetica",
-        fontSize=9,
-        leading=12,
-        alignment=TA_LEFT,
-        textColor=colors.HexColor("#111827"),
-    )
-    small_style = ParagraphStyle(
-        "MitPdfSmall",
-        parent=styles["BodyText"],
-        fontName="Helvetica",
-        fontSize=8.3,
-        leading=10.8,
-        alignment=TA_LEFT,
-        textColor=colors.HexColor("#111827"),
-    )
-
-    story = []
-
-    story.append(Paragraph("MIT STS Task Sheet", title_style))
-    story.append(Paragraph(
-        f"<b>{mit.mit_user.name}</b> • Store {mit.store_number or 'Not set'} • "
-        f"Level {mit.current_level} • Target {str(mit.target_level).upper()}",
-        subtitle_style,
-    ))
-    story.append(Paragraph(
-        f"Generated on {datetime.now().strftime('%Y-%m-%d %I:%M %p')} by {current_user.name}",
-        subtle_style,
-    ))
-    story.append(Spacer(1, 0.18 * inch))
-
-    summary_table = Table([
-        ["Coach", mit.coach_user.name if mit.coach_user else "Not set", "Status", mit.sts_status.replace("_", " ").title()],
-        ["Start Date", format_pdf_date(mit.start_date), "Next Review", format_pdf_date(mit.next_review_date)],
-        ["Overall Progress", f"{overall_progress}%", "Open Tasks", str(task_counts["open"])],
-        ["Overdue Tasks", str(task_counts["overdue"]), "Submitted Tasks", str(task_counts["submitted"])],
-    ], colWidths=[1.15 * inch, 2.15 * inch, 1.15 * inch, 2.55 * inch])
-
-    summary_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e2e8f0")),
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
-        ("FONTNAME", (3, 0), (3, -1), "Helvetica"),
-        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
-        ("FONTSIZE", (0, 0), (-1, -1), 9.2),
-        ("LEADING", (0, 0), (-1, -1), 12),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 7),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-    ]))
-    story.append(summary_table)
-    story.append(Spacer(1, 0.22 * inch))
-
-    story.append(Paragraph(f"Active Tasks ({len(active_tasks)})", section_style))
-    story.append(build_pdf_task_table(active_tasks, body_style, small_style))
-    story.append(Spacer(1, 0.2 * inch))
-
-    story.append(Paragraph(f"Completed / Closed Tasks ({len(completed_tasks)})", section_style))
-    story.append(build_pdf_task_table(completed_tasks, body_style, small_style))
-    story.append(Spacer(1, 0.25 * inch))
-
-    story.append(Paragraph("Manager / Coach Sign-Off", section_style))
-    signoff_table = Table([
-        ["Reviewed By:", "__________________________________", "Date:", "________________"],
-        ["Comments:", "__________________________________", "", ""],
-        ["", "__________________________________", "", ""],
-    ], colWidths=[1.0 * inch, 3.1 * inch, 0.7 * inch, 1.45 * inch])
-
-    signoff_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
-        ("FONTSIZE", (0, 0), (-1, -1), 9.2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
-        ("TOPPADDING", (0, 0), (-1, -1), 9),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ]))
-    story.append(signoff_table)
-
-    doc.build(story)
-    buffer.seek(0)
-
-    filename = f"mit_{mit.mit_user.name.strip().replace(' ', '_').lower()}_tasks.pdf"
-    return send_file(
-        buffer,
-        as_attachment=True,
-        download_name=filename,
-        mimetype="application/pdf",
-    )
-
-
-# --------------------------------------------------
-# LEVEL DETAIL / PROGRESS
-# --------------------------------------------------
-
-@mit_sts_bp.route("/mits/<int:mit_id>/level/<int:level_number>")
-@login_required
-def view_level(mit_id, level_number):
-    if level_number not in [1, 2, 3]:
-        flash("Invalid level.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    mit = MITProfile.query.options(
-        joinedload(MITProfile.mit_user),
-        joinedload(MITProfile.coach_user),
-    ).get_or_404(mit_id)
-
-    if not can_view_mit(mit):
-        flash("You do not have permission to view that MIT level.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    ensure_progress_rows_for_mit(mit)
-    refresh_mit_status(mit)
-    db.session.commit()
-
-    templates = MITLevelTemplate.query.filter_by(level_number=level_number).order_by(
-        MITLevelTemplate.category.asc(),
-        MITLevelTemplate.sort_order.asc(),
-        MITLevelTemplate.id.asc()
-    ).all()
-
-    progress_rows = MITLevelProgress.query.filter_by(mit_profile_id=mit.id).all()
-    progress_map = {row.template_item_id: row for row in progress_rows}
-
-    grouped_items = defaultdict(list)
-    for template in templates:
-        grouped_items[template.category or "General"].append(template)
-
-    active_tasks = MITTask.query.filter(
-        MITTask.mit_profile_id == mit.id,
-        MITTask.related_template_item_id.isnot(None),
-        MITTask.status.in_(["open", "in_progress", "submitted"])
-    ).order_by(MITTask.created_at.desc()).all()
-
-    active_task_map = {}
-    for task in active_tasks:
-        if task.related_template_item_id not in active_task_map:
-            active_task_map[task.related_template_item_id] = task
-
-    level_progress = calculate_level_progress(mit.id, level_number)
-    is_complete = level_progress == 100 and len(templates) > 0
-
-    return render_template(
-        "mit_sts/level_detail.html",
-        mit=mit,
-        level_number=level_number,
-        grouped_items=dict(grouped_items),
-        progress_map=progress_map,
-        active_task_map=active_task_map,
-        level_progress=level_progress,
-        is_complete=is_complete,
-        task_display_status=task_display_status,
-        user=current_user,
-        can_edit=can_edit_mit(),
-        can_manage_templates=can_manage_templates(),
-    )
-
-
-@mit_sts_bp.route("/progress/<int:progress_id>/status", methods=["POST"])
-@login_required
-def update_progress(progress_id):
-    if not is_leadership():
-        flash("You do not have permission to update STS items.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    progress = MITLevelProgress.query.get_or_404(progress_id)
-    new_status = request.form.get("status", "not_started").strip()
-
-    if new_status not in ["not_started", "in_progress", "complete"]:
-        flash("Invalid status.", "danger")
-        return redirect(url_for("mit_sts.view_mit", mit_id=progress.mit_profile_id))
-
-    progress.status = new_status
-    progress.notes = request.form.get("notes", "").strip() or progress.notes
-
-    if new_status == "complete":
-        progress.completed_date = datetime.utcnow().date()
-        progress.verified_by_user_id = current_user.id
-    else:
-        progress.completed_date = None
-        if new_status == "not_started":
-            progress.verified_by_user_id = None
-
-    mit = MITProfile.query.get(progress.mit_profile_id)
-    refresh_mit_status(mit)
-    db.session.commit()
-
-    template = MITLevelTemplate.query.get(progress.template_item_id)
-    flash("STS item updated.", "success")
-    return redirect(
-        url_for(
-            "mit_sts.view_level",
-            mit_id=progress.mit_profile_id,
-            level_number=template.level_number,
-        )
-    )
-
-
-# --------------------------------------------------
-# MIT TASKS LIST
-# --------------------------------------------------
-
-@mit_sts_bp.route("/mits/<int:mit_id>/tasks")
-@login_required
-def view_tasks(mit_id):
-    mit = MITProfile.query.get_or_404(mit_id)
-
-    if not can_view_mit(mit):
-        flash("You do not have permission to view those tasks.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    tasks = MITTask.query.filter_by(mit_profile_id=mit.id).order_by(
-        MITTask.due_date.asc(),
-        MITTask.created_at.desc()
-    ).all()
-
-    active_tasks = []
-    completed_tasks = []
-
-    for task in tasks:
-        display_status = task_display_status(task)
-        if display_status in ["verified", "cancelled"]:
-            completed_tasks.append((task, display_status))
-        else:
-            active_tasks.append((task, display_status))
-
-    return render_template(
-        "mit_sts/mit_tasks.html",
-        mit=mit,
-        active_tasks=active_tasks,
-        completed_tasks=completed_tasks,
-        today=date.today(),
-        user=current_user,
-        can_edit=can_edit_mit(),
-        can_manage_templates=can_manage_templates(),
-    )
-
-
-# --------------------------------------------------
-# TASK BOARD / ASSIGN SCREEN
+# NEW TASK BOARD
 # --------------------------------------------------
 
 @mit_sts_bp.route("/mits/<int:mit_id>/tasks/new", methods=["GET", "POST"])
 @login_required
 def new_task(mit_id):
-    if not is_leadership():
-        flash("You do not have permission to assign tasks.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
-    mit = MITProfile.query.get_or_404(mit_id)
-    ensure_progress_rows_for_mit(mit)
+    profile = MITProfile.query.get_or_404(mit_id)
+    ensure_progress_rows_for_mit(profile)
 
-    all_template_items = MITLevelTemplate.query.order_by(
+    grouped_template_items = defaultdict(list)
+    for item in MITLevelTemplate.query.order_by(
         MITLevelTemplate.level_number.asc(),
         MITLevelTemplate.category.asc(),
         MITLevelTemplate.sort_order.asc(),
-        MITLevelTemplate.id.asc()
-    ).all()
-
-    grouped_template_items = defaultdict(list)
-    for item in all_template_items:
+        MITLevelTemplate.id.asc(),
+    ).all():
         grouped_template_items[item.level_number].append(item)
 
-    progress_rows = MITLevelProgress.query.filter_by(mit_profile_id=mit.id).all()
+    progress_rows = MITLevelProgress.query.filter_by(mit_profile_id=profile.id).all()
     progress_map = {row.template_item_id: row for row in progress_rows}
 
-    active_task_map = {}
-    for task in MITTask.query.filter(
-        MITTask.mit_profile_id == mit.id,
-        MITTask.related_template_item_id.isnot(None),
-        MITTask.status.in_(["open", "in_progress", "submitted"])
-    ).order_by(MITTask.created_at.desc()).all():
-        if task.related_template_item_id not in active_task_map:
-            active_task_map[task.related_template_item_id] = task
+    active_task_map = get_active_task_map(profile.id)
+    all_linked_task_map = get_all_linked_task_map(profile.id)
+
+    open_tasks_count, overdue_tasks_count, submitted_tasks_count = get_task_counts(profile.id)
 
     return render_template(
         "mit_sts/mit_task_form.html",
-        mit=mit,
+        mit=profile,
         grouped_template_items=dict(grouped_template_items),
         progress_map=progress_map,
         active_task_map=active_task_map,
+        all_linked_task_map=all_linked_task_map,
         task_display_status=task_display_status,
         page_title="Assign MIT Tasks",
-        submit_label="Assign Selected Tasks",
+        submit_label="Assign Task",
+        open_tasks_count=open_tasks_count,
+        overdue_tasks_count=overdue_tasks_count,
+        submitted_tasks_count=submitted_tasks_count,
         user=current_user,
-        can_manage_templates=can_manage_templates(),
+        can_manage_templates=is_coach(),
     )
 
+
+# --------------------------------------------------
+# BOARD TASK ROUTES
+# --------------------------------------------------
 
 @mit_sts_bp.route("/tasks/board/<int:progress_id>/assign", methods=["POST"])
 @login_required
 def assign_board_task(progress_id):
-    if not is_leadership():
-        flash("You do not have permission to assign tasks.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
     progress = MITLevelProgress.query.get_or_404(progress_id)
     template = MITLevelTemplate.query.get_or_404(progress.template_item_id)
-    mit = MITProfile.query.get_or_404(progress.mit_profile_id)
+    profile = MITProfile.query.get_or_404(progress.mit_profile_id)
 
     title = request.form.get("title", "").strip() or template.item_name
     due_date_raw = request.form.get("due_date", "").strip()
     priority = request.form.get("priority", "medium").strip()
     notes = request.form.get("notes", "").strip()
     status = request.form.get("status", "open").strip()
-    redirect_mit_id = request.args.get("mit_id", type=int) or mit.id
+    redirect_mit_id = request.args.get("mit_id", type=int) or profile.id
 
     existing_open_task = MITTask.query.filter(
         MITTask.mit_profile_id == progress.mit_profile_id,
@@ -1341,7 +1226,10 @@ def assign_board_task(progress_id):
         except ValueError:
             pass
 
-    if status not in ["open", "in_progress", "submitted", "verified"]:
+    if priority not in ["low", "medium", "high"]:
+        priority = "medium"
+
+    if status not in ["open", "in_progress", "submitted", "verified", "cancelled"]:
         status = "open"
 
     task = MITTask(
@@ -1351,31 +1239,13 @@ def assign_board_task(progress_id):
         related_template_item_id=template.id,
         assigned_by_user_id=current_user.id,
         due_date=due_date_obj,
-        priority=priority if priority in ["low", "medium", "high"] else "medium",
+        priority=priority,
         status=status,
         notes=notes or None,
     )
 
-    if status == "verified":
-        task.completed_at = datetime.utcnow()
-        progress.status = "complete"
-        progress.completed_date = datetime.utcnow().date()
-        progress.verified_by_user_id = current_user.id
-    elif status == "in_progress":
-        progress.status = "in_progress"
-        progress.completed_date = None
-        progress.verified_by_user_id = None
-    elif status == "submitted":
-        progress.status = "in_progress"
-        progress.completed_date = None
-        progress.verified_by_user_id = None
-    else:
-        progress.status = "not_started"
-        progress.completed_date = None
-        progress.verified_by_user_id = None
-
     db.session.add(task)
-    refresh_mit_status(mit)
+    sync_progress_from_task(task, progress)
     db.session.commit()
 
     flash("Task assigned successfully.", "success")
@@ -1385,19 +1255,20 @@ def assign_board_task(progress_id):
 @mit_sts_bp.route("/tasks/board/<int:task_id>/manage", methods=["POST"])
 @login_required
 def manage_board_task(task_id):
-    if not is_leadership():
-        flash("You do not have permission to manage tasks.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
     task = MITTask.query.get_or_404(task_id)
-    mit = MITProfile.query.get_or_404(task.mit_profile_id)
-    redirect_mit_id = request.args.get("mit_id", type=int) or mit.id
+    profile = MITProfile.query.get_or_404(task.mit_profile_id)
+    redirect_mit_id = request.args.get("mit_id", type=int) or profile.id
 
     title = request.form.get("title", "").strip()
     due_date_raw = request.form.get("due_date", "").strip()
     priority = request.form.get("priority", "medium").strip()
     notes = request.form.get("notes", "").strip()
-    action = request.form.get("action", "").strip()
+
+    submit_action = request.form.get("submit_action", "").strip()
+    selected_status = request.form.get("status", "").strip()
 
     if title:
         task.title = title
@@ -1416,62 +1287,54 @@ def manage_board_task(task_id):
     task.notes = notes or None
 
     progress = None
-    if task.related_template_item_id:
+    if getattr(task, "related_template_item_id", None):
         progress = MITLevelProgress.query.filter_by(
             mit_profile_id=task.mit_profile_id,
             template_item_id=task.related_template_item_id,
         ).first()
 
-    if action == "unassign":
-        if progress and progress.status == "complete":
-            progress.status = "in_progress"
-            progress.completed_date = None
-            progress.verified_by_user_id = None
+    if submit_action == "unassign":
         db.session.delete(task)
-        refresh_mit_status(mit)
+
+        if progress:
+            active_remaining = MITTask.query.filter(
+                MITTask.mit_profile_id == progress.mit_profile_id,
+                MITTask.related_template_item_id == progress.template_item_id,
+                MITTask.status.in_(["open", "in_progress", "submitted"])
+            ).count()
+
+            if active_remaining <= 1 and progress.status != "complete":
+                progress.status = "not_started"
+                progress.completed_date = None
+                progress.verified_by_user_id = None
+
         db.session.commit()
         flash("Task unassigned.", "success")
         return redirect(url_for("mit_sts.new_task", mit_id=redirect_mit_id))
 
-    if action in ["open", "in_progress", "submitted", "verified", "cancelled"]:
-        task.status = action
+    if submit_action == "save":
+        if selected_status in ["open", "in_progress", "submitted", "verified", "cancelled"]:
+            task.status = selected_status
 
-    if task.status == "verified":
-        task.completed_at = datetime.utcnow()
-        if progress:
-            progress.status = "complete"
-            progress.completed_date = datetime.utcnow().date()
-            progress.verified_by_user_id = current_user.id
-    else:
-        task.completed_at = None
+        sync_progress_from_task(task, progress)
 
-        if progress:
-            if task.status == "open":
-                progress.status = "not_started"
-                progress.completed_date = None
-                progress.verified_by_user_id = None
-            elif task.status in ["in_progress", "submitted"]:
-                progress.status = "in_progress"
-                progress.completed_date = None
-                progress.verified_by_user_id = None
-            elif task.status == "cancelled" and progress.status == "complete":
-                progress.status = "in_progress"
-                progress.completed_date = None
-                progress.verified_by_user_id = None
+        db.session.commit()
+        flash("Task updated.", "success")
+        return redirect(url_for("mit_sts.new_task", mit_id=redirect_mit_id))
 
-    refresh_mit_status(mit)
-    db.session.commit()
-
-    flash("Task updated.", "success")
+    flash("No action selected.", "danger")
     return redirect(url_for("mit_sts.new_task", mit_id=redirect_mit_id))
 
+
+# --------------------------------------------------
+# QUICK ADD TASK
+# --------------------------------------------------
 
 @mit_sts_bp.route("/tasks/<int:task_id>/quick-add", methods=["POST"])
 @login_required
 def quick_add_task(task_id):
-    if not is_leadership():
-        flash("You do not have permission to assign tasks.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
     progress = MITLevelProgress.query.get_or_404(task_id)
     template = MITLevelTemplate.query.get_or_404(progress.template_item_id)
@@ -1510,292 +1373,331 @@ def quick_add_task(task_id):
         notes=notes or None,
     )
     db.session.add(task)
+
+    progress.status = "in_progress"
+    progress.completed_date = None
+    progress.verified_by_user_id = None
+
     db.session.commit()
 
     flash("Task assigned to this STS item.", "success")
     return redirect(url_for("mit_sts.view_level", mit_id=progress.mit_profile_id, level_number=template.level_number))
 
 
-@mit_sts_bp.route("/tasks/<int:task_id>/submit", methods=["POST"])
+# --------------------------------------------------
+# TASKS
+# --------------------------------------------------
+
+@mit_sts_bp.route("/tasks/<int:mit_id>")
 @login_required
-def submit_task_for_review(task_id):
-    task = MITTask.query.get_or_404(task_id)
+def view_tasks(mit_id):
+    profile = MITProfile.query.get_or_404(mit_id)
 
-    mit = MITProfile.query.get_or_404(task.mit_profile_id)
-    if not can_view_mit(mit) or current_user.id != mit.user_id:
-        flash("You do not have permission to submit that task.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    if not is_coach() and profile.user_id != current_user.id:
+        return redirect(url_for("mit_sts.dashboard"))
 
-    if task.status not in ["open", "in_progress"] and task_display_status(task) != "overdue":
-        flash("That task cannot be submitted right now.", "danger")
-        return redirect(url_for("mit_sts.view_tasks", mit_id=mit.id))
+    tasks = MITTask.query.filter_by(mit_profile_id=mit_id).all()
 
-    mit_note = request.form.get("mit_completion_note", "").strip()
+    open_tasks_count, overdue_tasks_count, submitted_tasks_count = get_task_counts(profile.id)
 
-    task.status = "submitted"
-    if mit_note:
-        existing_notes = task.notes or ""
-        if existing_notes:
-            task.notes = existing_notes + f"\n\nMIT submission note: {mit_note}"
-        else:
-            task.notes = f"MIT submission note: {mit_note}"
+    return render_template(
+        "mit_sts/mit_tasks.html",
+        tasks=tasks,
+        profile=profile,
+        mit=profile,
+        open_tasks_count=open_tasks_count,
+        overdue_tasks_count=overdue_tasks_count,
+        submitted_tasks_count=submitted_tasks_count,
+        user=current_user,
+        can_edit=is_coach(),
+    )
 
-    db.session.commit()
 
-    flash("Task submitted for leadership review.", "success")
-    return redirect(url_for("mit_sts.view_tasks", mit_id=mit.id))
-
+# --------------------------------------------------
+# UPDATE TASK STATUS
+# --------------------------------------------------
 
 @mit_sts_bp.route("/tasks/<int:task_id>/status", methods=["POST"])
 @login_required
 def update_task_status(task_id):
-    if not is_leadership():
-        flash("You do not have permission to update task status.", "danger")
-        return redirect(url_for("academy.dashboard"))
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
     task = MITTask.query.get_or_404(task_id)
-    new_status = request.form.get("status", "open").strip()
-
-    if new_status not in ["open", "in_progress", "submitted", "verified", "cancelled"]:
-        flash("Invalid task status.", "danger")
-        return redirect(url_for("mit_sts.view_tasks", mit_id=task.mit_profile_id))
-
-    task.status = new_status
-
-    if new_status == "verified":
-        task.completed_at = datetime.utcnow()
-
-        if task.related_template_item_id:
-            progress = MITLevelProgress.query.filter_by(
-                mit_profile_id=task.mit_profile_id,
-                template_item_id=task.related_template_item_id,
-            ).first()
-
-            if progress:
-                progress.status = "complete"
-                progress.completed_date = datetime.utcnow().date()
-                progress.verified_by_user_id = current_user.id
-    else:
-        task.completed_at = None
-
-        if task.related_template_item_id:
-            progress = MITLevelProgress.query.filter_by(
-                mit_profile_id=task.mit_profile_id,
-                template_item_id=task.related_template_item_id,
-            ).first()
-
-            if progress:
-                if new_status == "open":
-                    progress.status = "not_started"
-                    progress.completed_date = None
-                    progress.verified_by_user_id = None
-                elif new_status in ["in_progress", "submitted"]:
-                    progress.status = "in_progress"
-                    progress.completed_date = None
-                    progress.verified_by_user_id = None
-                elif new_status == "cancelled" and progress.status == "complete":
-                    progress.status = "in_progress"
-                    progress.completed_date = None
-                    progress.verified_by_user_id = None
-
-    mit = MITProfile.query.get(task.mit_profile_id)
-    if mit:
-        refresh_mit_status(mit)
-
+    task.status = request.form.get("status")
     db.session.commit()
-
-    flash("Task updated.", "success")
-
-    level_number = None
-    if task.related_template_item_id:
-        template = MITLevelTemplate.query.get(task.related_template_item_id)
-        if template:
-            level_number = template.level_number
-
-    if level_number:
-        return redirect(url_for("mit_sts.view_level", mit_id=task.mit_profile_id, level_number=level_number))
 
     return redirect(url_for("mit_sts.view_tasks", mit_id=task.mit_profile_id))
 
 
 # --------------------------------------------------
-# STS TEMPLATE MANAGEMENT
+# PROMOTIONS
 # --------------------------------------------------
 
-@mit_sts_bp.route("/templates")
+@mit_sts_bp.route("/promotion-queue")
 @login_required
-def template_library():
-    if not can_manage_templates():
-        flash("You do not have permission to manage STS templates.", "danger")
-        return redirect(url_for("academy.dashboard"))
+def promotion_queue():
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
 
-    templates = MITLevelTemplate.query.order_by(
-        MITLevelTemplate.level_number.asc(),
-        MITLevelTemplate.category.asc(),
-        MITLevelTemplate.sort_order.asc(),
-        MITLevelTemplate.id.asc(),
-    ).all()
+    queue = MITPromotion.query.all()
+    return render_template("mit_sts/promotion_queue.html", queue=queue)
 
-    grouped_templates = defaultdict(list)
-    for item in templates:
-        grouped_templates[item.level_number].append(item)
 
-    return render_template(
-        "mit_sts/template_library.html",
-        grouped_templates=dict(grouped_templates),
-        user=current_user,
+@mit_sts_bp.route("/promote/<int:mit_id>", methods=["POST"])
+@login_required
+def promote_mit(mit_id):
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
+
+    promotion = MITPromotion(
+        mit_profile_id=mit_id,
+        approved_by_user_id=current_user.id,
+        effective_date=date.today(),
+        from_level=1,
+        to_level="2",
     )
 
-
-@mit_sts_bp.route("/templates/new", methods=["GET", "POST"])
-@login_required
-def new_template_item():
-    if not can_manage_templates():
-        flash("You do not have permission to create STS items.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    if request.method == "POST":
-        level_number_raw = request.form.get("level_number", "1").strip()
-        category = request.form.get("category", "").strip()
-        item_name = request.form.get("item_name", "").strip()
-        item_description = request.form.get("item_description", "").strip()
-        sort_order_raw = request.form.get("sort_order", "0").strip()
-        source_ref = request.form.get("source_ref", "").strip()
-        is_required = request.form.get("is_required") == "on"
-
-        if not item_name:
-            flash("Item name is required.", "danger")
-            return redirect(url_for("mit_sts.new_template_item"))
-
-        try:
-            level_number = int(level_number_raw)
-        except ValueError:
-            level_number = 1
-
-        if level_number not in [1, 2, 3]:
-            level_number = 1
-
-        try:
-            sort_order = int(sort_order_raw)
-        except ValueError:
-            sort_order = 0
-
-        item = MITLevelTemplate(
-            level_number=level_number,
-            category=category or None,
-            item_name=item_name,
-            item_description=item_description or None,
-            sort_order=sort_order,
-            is_required=is_required,
-            source_ref=source_ref or None,
-        )
-
-        db.session.add(item)
-        db.session.commit()
-
-        all_mits = MITProfile.query.all()
-        for mit in all_mits:
-            existing_progress = MITLevelProgress.query.filter_by(
-                mit_profile_id=mit.id,
-                template_item_id=item.id
-            ).first()
-            if not existing_progress:
-                db.session.add(MITLevelProgress(
-                    mit_profile_id=mit.id,
-                    template_item_id=item.id,
-                    status="not_started",
-                ))
-        db.session.commit()
-
-        flash("STS item created successfully.", "success")
-        return redirect(url_for("mit_sts.template_library"))
-
-    return render_template(
-        "mit_sts/template_form.html",
-        page_title="Create STS Item",
-        submit_label="Create STS Item",
-        item=None,
-        user=current_user,
-    )
-
-
-@mit_sts_bp.route("/templates/<int:item_id>/edit", methods=["GET", "POST"])
-@login_required
-def edit_template_item(item_id):
-    if not can_manage_templates():
-        flash("You do not have permission to edit STS items.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    item = MITLevelTemplate.query.get_or_404(item_id)
-
-    if request.method == "POST":
-        level_number_raw = request.form.get("level_number", str(item.level_number)).strip()
-        category = request.form.get("category", "").strip()
-        item_name = request.form.get("item_name", "").strip()
-        item_description = request.form.get("item_description", "").strip()
-        sort_order_raw = request.form.get("sort_order", "0").strip()
-        source_ref = request.form.get("source_ref", "").strip()
-        is_required = request.form.get("is_required") == "on"
-
-        if not item_name:
-            flash("Item name is required.", "danger")
-            return redirect(url_for("mit_sts.edit_template_item", item_id=item.id))
-
-        try:
-            level_number = int(level_number_raw)
-        except ValueError:
-            level_number = item.level_number
-
-        if level_number not in [1, 2, 3]:
-            level_number = item.level_number
-
-        try:
-            sort_order = int(sort_order_raw)
-        except ValueError:
-            sort_order = item.sort_order or 0
-
-        item.level_number = level_number
-        item.category = category or None
-        item.item_name = item_name
-        item.item_description = item_description or None
-        item.sort_order = sort_order
-        item.is_required = is_required
-        item.source_ref = source_ref or None
-
-        db.session.commit()
-
-        flash("STS item updated successfully.", "success")
-        return redirect(url_for("mit_sts.template_library"))
-
-    return render_template(
-        "mit_sts/template_form.html",
-        page_title="Edit STS Item",
-        submit_label="Save Changes",
-        item=item,
-        user=current_user,
-    )
-
-
-@mit_sts_bp.route("/templates/<int:item_id>/delete", methods=["POST"])
-@login_required
-def delete_template_item(item_id):
-    if not can_manage_templates():
-        flash("You do not have permission to delete STS items.", "danger")
-        return redirect(url_for("academy.dashboard"))
-
-    item = MITLevelTemplate.query.get_or_404(item_id)
-
-    linked_active_task = MITTask.query.filter(
-        MITTask.related_template_item_id == item.id,
-        MITTask.status.in_(["open", "in_progress", "submitted"])
-    ).first()
-
-    if linked_active_task:
-        flash("You cannot delete an STS item while it has an active linked task.", "danger")
-        return redirect(url_for("mit_sts.template_library"))
-
-    db.session.delete(item)
+    db.session.add(promotion)
     db.session.commit()
 
-    flash("STS item deleted.", "success")
-    return redirect(url_for("mit_sts.template_library"))
+    return redirect(url_for("mit_sts.promotion_queue"))
+
+
+# --------------------------------------------------
+# EXPORT
+# --------------------------------------------------
+
+@mit_sts_bp.route("/export/<int:mit_id>")
+@login_required
+def export_tasks_pdf(mit_id):
+    profile = MITProfile.query.get_or_404(mit_id)
+
+    if not is_coach() and profile.user_id != current_user.id:
+        return redirect(url_for("mit_sts.dashboard"))
+
+    tasks = (
+        MITTask.query
+        .filter(
+            MITTask.mit_profile_id == mit_id,
+            MITTask.status != "cancelled",
+        )
+        .order_by(
+            MITTask.due_date.asc().nullslast(),
+            MITTask.id.asc(),
+        )
+        .all()
+    )
+
+    open_count = sum(1 for t in tasks if t.status == "open")
+    in_progress_count = sum(1 for t in tasks if t.status == "in_progress")
+    submitted_count = sum(1 for t in tasks if t.status == "submitted")
+    verified_count = sum(1 for t in tasks if t.status == "verified")
+    overdue_count = sum(
+        1 for t in tasks
+        if t.due_date and t.due_date < date.today() and t.status not in ["verified", "cancelled", "submitted"]
+    )
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_style = styles["Heading1"]
+    title_style.fontName = "Helvetica-Bold"
+    title_style.fontSize = 20
+    title_style.leading = 24
+    title_style.textColor = colors.HexColor("#0F172A")
+
+    section_title_style = styles["Heading2"]
+    section_title_style.fontName = "Helvetica-Bold"
+    section_title_style.fontSize = 12
+    section_title_style.leading = 14
+    section_title_style.textColor = colors.HexColor("#334155")
+    section_title_style.spaceAfter = 8
+
+    body_style = styles["BodyText"]
+    body_style.fontName = "Helvetica"
+    body_style.fontSize = 9
+    body_style.leading = 12
+    body_style.textColor = colors.HexColor("#334155")
+
+    small_style = ParagraphStyle(
+        "SmallStyle",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#64748B"),
+    )
+
+    label_style = ParagraphStyle(
+        "LabelStyle",
+        parent=styles["BodyText"],
+        fontName="Helvetica-Bold",
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#64748B"),
+    )
+
+    story = []
+
+    mit_name = profile.mit_user.name if profile.mit_user else f"MIT #{profile.id}"
+    coach_name = profile.coach_user.name if profile.coach_user else "Not assigned"
+    store_number = profile.store_number or "-"
+    current_level = profile.current_level or "-"
+    status_value = profile.sts_status.replace("_", " ").title() if profile.sts_status else "-"
+
+    story.append(Paragraph("Boston Pie Academy", small_style))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("Assigned Task Report", title_style))
+    story.append(Spacer(1, 12))
+
+    info_data = [
+        [
+            Paragraph("<b>MIT</b><br/>" + mit_name, body_style),
+            Paragraph("<b>Store</b><br/>" + str(store_number), body_style),
+            Paragraph("<b>Coach</b><br/>" + coach_name, body_style),
+        ],
+        [
+            Paragraph("<b>Current Level</b><br/>" + str(current_level), body_style),
+            Paragraph("<b>STS Status</b><br/>" + status_value, body_style),
+            Paragraph("<b>Report Date</b><br/>" + date.today().strftime("%Y-%m-%d"), body_style),
+        ],
+    ]
+
+    info_table = Table(info_data, colWidths=[170, 170, 170])
+    info_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#E2E8F0")),
+        ("INNERGRID", (0, 0), (-1, -1), 1, colors.HexColor("#E2E8F0")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+
+    story.append(info_table)
+    story.append(Spacer(1, 16))
+
+    story.append(Paragraph("Task Summary", section_title_style))
+
+    summary_data = [
+        [
+            Paragraph("<b>Total Tasks</b><br/>" + str(len(tasks)), body_style),
+            Paragraph("<b>Open</b><br/>" + str(open_count), body_style),
+            Paragraph("<b>In Progress</b><br/>" + str(in_progress_count), body_style),
+            Paragraph("<b>Submitted</b><br/>" + str(submitted_count), body_style),
+            Paragraph("<b>Verified</b><br/>" + str(verified_count), body_style),
+            Paragraph("<b>Overdue</b><br/>" + str(overdue_count), body_style),
+        ]
+    ]
+
+    summary_table = Table(summary_data, colWidths=[84, 72, 82, 78, 72, 72])
+    summary_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+        ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#E2E8F0")),
+        ("INNERGRID", (0, 0), (-1, -1), 1, colors.HexColor("#E2E8F0")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+
+    story.append(summary_table)
+    story.append(Spacer(1, 18))
+
+    story.append(Paragraph("Assigned Tasks", section_title_style))
+
+    if tasks:
+        task_rows = [[
+            Paragraph("<b>Task</b>", label_style),
+            Paragraph("<b>Status</b>", label_style),
+            Paragraph("<b>Priority</b>", label_style),
+            Paragraph("<b>Due</b>", label_style),
+            Paragraph("<b>Notes</b>", label_style),
+        ]]
+
+        for task in tasks:
+            due_text = task.due_date.strftime("%Y-%m-%d") if task.due_date else "-"
+            notes_text = task.notes if task.notes else "-"
+            status_text = task.status.replace("_", " ").title()
+            priority_text = (task.priority or "-").title()
+
+            task_rows.append([
+                Paragraph(task.title or "-", body_style),
+                Paragraph(status_text, body_style),
+                Paragraph(priority_text, body_style),
+                Paragraph(due_text, body_style),
+                Paragraph(notes_text, body_style),
+            ])
+
+        task_table = Table(
+            task_rows,
+            colWidths=[185, 72, 62, 62, 147],
+            repeatRows=1,
+        )
+
+        table_style = TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F1F5F9")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#334155")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
+            ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor("#CBD5E1")),
+            ("GRID", (0, 1), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ])
+
+        for row_index, task in enumerate(tasks, start=1):
+            if task.status == "verified":
+                bg = colors.HexColor("#F0FDF4")
+            elif task.status == "submitted":
+                bg = colors.HexColor("#FFFBEB")
+            elif task.due_date and task.due_date < date.today() and task.status not in ["verified", "cancelled", "submitted"]:
+                bg = colors.HexColor("#FEF2F2")
+            else:
+                bg = colors.white
+
+            table_style.add("BACKGROUND", (0, row_index), (-1, row_index), bg)
+
+        task_table.setStyle(table_style)
+        story.append(task_table)
+    else:
+        empty_box = Table(
+            [[Paragraph("No assigned tasks found for this MIT.", body_style)]],
+            colWidths=[528],
+        )
+        empty_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+            ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#E2E8F0")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 12),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+            ("TOPPADDING", (0, 0), (-1, -1), 12),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ]))
+        story.append(empty_box)
+
+    doc.build(story)
+
+    buffer.seek(0)
+    safe_name = mit_name.replace(" ", "_").replace("/", "-")
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f"{safe_name}_assigned_tasks.pdf",
+        mimetype="application/pdf",
+    )

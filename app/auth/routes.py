@@ -10,7 +10,9 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("academy.dashboard"))
+        if current_user.role == "mit":
+            return redirect(url_for("mit_sts.my_mit"))
+        return redirect(url_for("mit_sts.dashboard"))
 
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -21,7 +23,10 @@ def login():
         if user and user.check_password(password):
             login_user(user)
             flash("Logged in successfully.", "success")
-            return redirect(url_for("academy.dashboard"))
+
+            if user.role == "mit":
+                return redirect(url_for("mit_sts.my_mit"))
+            return redirect(url_for("mit_sts.dashboard"))
 
         flash("Invalid username or password.", "danger")
 

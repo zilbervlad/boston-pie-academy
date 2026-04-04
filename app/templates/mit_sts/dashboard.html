@@ -1,145 +1,143 @@
 {% extends "base.html" %}
 
-{% block title %}MIT STS Dashboard{% endblock %}
+{% block title %}MIT Dashboard{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
         <p class="eyebrow">MIT STS</p>
-        <h2>Leadership Dashboard</h2>
-        <p class="subtle">Track readiness, blockers, and task flow across all MITs.</p>
+        <h2>Dashboard</h2>
+        <p class="subtle">Track MIT development, readiness, and task activity.</p>
     </div>
 
-    <div class="track-actions">
-        <a class="btn btn-secondary" href="{{ url_for('mit_sts.list_mits') }}">View All MITs</a>
-        <a class="btn btn-secondary" href="{{ url_for('mit_sts.template_library') }}">Edit STS Structure</a>
-        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_mit') }}">+ New MIT</a>
-    </div>
+    {% if user.role in ["coach", "admin", "training_director"] %}
+    <a href="{{ url_for('mit_sts.new_mit') }}" class="btn btn-primary">
+        + New MIT
+    </a>
+    {% endif %}
 </div>
-
-{% set recent_mit = recent_mits[0] if recent_mits else None %}
-{% set recent_progress = recent_progress_map.get(recent_mit.id, 0) if recent_mit else 0 %}
 
 {% if overdue_tasks_count > 0 %}
-    {% set message = "You have " ~ overdue_tasks_count ~ " overdue task" ~ ("s" if overdue_tasks_count != 1 else "") ~ ". Start there first." %}
-{% elif submitted_tasks_count > 0 %}
-    {% set message = submitted_tasks_count ~ " task" ~ ("s are" if submitted_tasks_count != 1 else " is") ~ " waiting for review right now." %}
+<div class="card" style="margin-bottom: 18px; border-left: 4px solid #dc2626;">
+    <p style="margin: 0; font-weight: 600;">Attention needed</p>
+    <p class="subtle" style="margin: 6px 0 0 0;">
+        You have {{ overdue_tasks_count }} overdue task{% if overdue_tasks_count != 1 %}s{% endif %}.
+    </p>
+</div>
 {% elif ready_count > 0 %}
-    {% set message = ready_count ~ " MIT" ~ ("s are" if ready_count != 1 else " is") ~ " ready for promotion review." %}
-{% elif blocked_count > 0 %}
-    {% set message = blocked_count ~ " MIT" ~ ("s are" if blocked_count != 1 else " is") ~ " blocked. That needs leadership attention." %}
-{% elif total_mits == 0 %}
-    {% set message = "No MITs are in the pipeline yet. Build the first profile and get training moving." %}
-{% elif total_mits == 1 and recent_mit %}
-    {% set message = "You have 1 active MIT — " ~ recent_mit.mit_user.name ~ " is currently at " ~ recent_progress ~ "% on Level " ~ recent_mit.current_level ~ "." %}
-{% elif total_mits > 0 and level_1_count == total_mits %}
-    {% set message = "All active MITs are still in Level 1. Focus on building consistency before pushing promotions." %}
-{% else %}
-    {% set message = total_mits ~ " MIT" ~ ("s are" if total_mits != 1 else " is") ~ " active in the pipeline. No urgent blockers right now." %}
+<div class="card" style="margin-bottom: 18px; border-left: 4px solid #16a34a;">
+    <p style="margin: 0; font-weight: 600;">Ready to move</p>
+    <p class="subtle" style="margin: 6px 0 0 0;">
+        {{ ready_count }} MIT{% if ready_count != 1 %}s are{% else %} is{% endif %} ready for the next step.
+    </p>
+</div>
 {% endif %}
-{% include "partials/doughy.html" %}
 
-<div class="stats-grid" style="grid-template-columns: repeat(4, minmax(220px, 1fr));">
-    <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits') }}">
-        <div class="stat-label">Total MITs</div>
-        <h3>{{ total_mits }}</h3>
-        <p class="subtle">Open full MIT list</p>
-    </a>
+<div class="stats-grid">
+    <div class="card stat-card">
+        <p class="stat-label">Total MITs</p>
+        <h3 class="stat-value">{{ total_mits }}</h3>
+    </div>
 
-    <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits', level=1) }}">
-        <div class="stat-label">Level 1</div>
-        <h3>{{ level_1_count }}</h3>
-        <p class="subtle">View Level 1 MITs</p>
-    </a>
+    <div class="card stat-card">
+        <p class="stat-label">Level 1</p>
+        <h3 class="stat-value">{{ level_1_count }}</h3>
+    </div>
 
-    <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits', level=2) }}">
-        <div class="stat-label">Level 2</div>
-        <h3>{{ level_2_count }}</h3>
-        <p class="subtle">View Level 2 MITs</p>
-    </a>
+    <div class="card stat-card">
+        <p class="stat-label">Level 2</p>
+        <h3 class="stat-value">{{ level_2_count }}</h3>
+    </div>
 
-    <a class="card stat-card dashboard-stat-link" href="{{ url_for('mit_sts.list_mits', level=3) }}">
-        <div class="stat-label">Level 3</div>
-        <h3>{{ level_3_count }}</h3>
-        <p class="subtle">View Level 3 MITs</p>
-    </a>
+    <div class="card stat-card">
+        <p class="stat-label">Level 3</p>
+        <h3 class="stat-value">{{ level_3_count }}</h3>
+    </div>
 
-    <a class="card stat-card dashboard-stat-link stat-success" href="{{ url_for('mit_sts.list_mits', status='ready') }}">
-        <div class="stat-label">Ready</div>
-        <h3>{{ ready_count }}</h3>
-        <p class="subtle">Ready for promotion</p>
-    </a>
+    <div class="card stat-card">
+        <p class="stat-label">Ready</p>
+        <h3 class="stat-value">{{ ready_count }}</h3>
+    </div>
 
-    <a class="card stat-card dashboard-stat-link stat-danger" href="{{ url_for('mit_sts.list_mits', status='blocked') }}">
-        <div class="stat-label">Blocked</div>
-        <h3>{{ blocked_count }}</h3>
-        <p class="subtle">Needs attention</p>
-    </a>
+    <div class="card stat-card">
+        <p class="stat-label">Blocked</p>
+        <h3 class="stat-value">{{ blocked_count }}</h3>
+    </div>
 
-    <a class="card stat-card dashboard-stat-link stat-warning" href="{{ url_for('mit_sts.list_mits', task_filter='overdue') }}">
-        <div class="stat-label">Overdue Tasks</div>
-        <h3>{{ overdue_tasks_count }}</h3>
-        <p class="subtle">Take action now</p>
-    </a>
+    <div class="card stat-card">
+        <p class="stat-label">Overdue Tasks</p>
+        <h3 class="stat-value">{{ overdue_tasks_count }}</h3>
+    </div>
 
-    <a class="card stat-card dashboard-stat-link stat-info" href="{{ url_for('mit_sts.list_mits', task_filter='submitted') }}">
-        <div class="stat-label">Submitted Tasks</div>
-        <h3>{{ submitted_tasks_count }}</h3>
-        <p class="subtle">Waiting on review</p>
-    </a>
+    <div class="card stat-card">
+        <p class="stat-label">Submitted Tasks</p>
+        <h3 class="stat-value">{{ submitted_tasks_count }}</h3>
+    </div>
 </div>
 
-<div class="card">
-    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+<div class="card" style="margin-top: 24px;">
+    <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
         <div>
-            <h3>Recent MIT Profiles</h3>
-            <p>Quick access to the most recently created MITs.</p>
+            <h3 style="margin:0;">Recent MITs</h3>
+            <p class="subtle" style="margin:4px 0 0 0;">Latest MIT development profiles.</p>
         </div>
 
-        <a class="btn btn-secondary" href="{{ url_for('mit_sts.list_mits') }}">Open Full List</a>
+        <a href="{{ url_for('mit_sts.list_mits') }}" class="btn btn-secondary">View All</a>
     </div>
 
     {% if recent_mits %}
-    <div class="track-list">
-        {% for mit in recent_mits %}
-        {% set level_progress = recent_progress_map.get(mit.id, 0) %}
-        <div class="track-row recent-mit-row">
-            <div class="recent_mit-main">
-                <div class="track-title">{{ mit.mit_user.name }}</div>
-
-                <div class="track-meta">
-                    <span>Store {{ mit.store_number or '—' }}</span>
-                    <span>•</span>
-                    <span>Level {{ mit.current_level }}</span>
-                    <span>•</span>
-                    <span>Coach: {{ mit.coach_user.name if mit.coach_user else 'Not Assigned' }}</span>
-                </div>
-
-                <div class="recent-mit-progress-wrap">
-                    <div class="recent-mit-progress-meta">
-                        <span>Progress</span>
-                        <span>{{ level_progress }}%</span>
-                    </div>
-                    <div class="recent-mit-progress-bar">
-                        <div class="recent-mit-progress-fill" style="width: {{ level_progress }}%;"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="track-actions">
-                <span class="badge">
-                    {{ mit.sts_status.replace('_', ' ')|title }}
-                </span>
-                <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Open</a>
-                <a class="btn btn-secondary" href="{{ url_for('mit_sts.edit_mit', mit_id=mit.id) }}">Edit</a>
-            </div>
-        </div>
-        {% endfor %}
+    <div class="table-wrap" style="margin-top: 18px;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>MIT</th>
+                    <th>Store</th>
+                    <th>Coach</th>
+                    <th>Level</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th style="width: 120px;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mit in recent_mits %}
+                <tr>
+                    <td>
+                        {% if mit.mit_user %}
+                            {{ mit.mit_user.name }}
+                        {% else %}
+                            MIT #{{ mit.id }}
+                        {% endif %}
+                    </td>
+                    <td>{{ mit.store_number or "-" }}</td>
+                    <td>
+                        {% if mit.coach_user %}
+                            {{ mit.coach_user.name }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>Level {{ mit.current_level }}</td>
+                    <td>{{ mit.sts_status.replace('_', ' ').title() if mit.sts_status else '-' }}</td>
+                    <td>{{ recent_progress_map.get(mit.id, 0) }}%</td>
+                    <td>
+                        <a href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}" class="btn btn-secondary btn-sm">Open</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
     {% else %}
-    <div class="empty-state">
-        <h3>No MIT profiles yet</h3>
-        <p>Doughy is waiting — create your first MIT profile.</p>
+    <div class="card" style="margin-top: 18px; text-align:center;">
+        <h3 style="margin-bottom: 8px;">No MITs yet</h3>
+        <p class="subtle">Start building your bench.</p>
+
+        {% if user.role in ["coach", "admin", "training_director"] %}
+        <a href="{{ url_for('mit_sts.new_mit') }}" class="btn btn-primary" style="margin-top: 12px;">
+            + Create First MIT
+        </a>
+        {% endif %}
     </div>
     {% endif %}
 </div>

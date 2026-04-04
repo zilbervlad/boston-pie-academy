@@ -3,7 +3,7 @@
 {% block title %}MIT Profile{% endblock %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header page-header-tight">
     <div>
         <p class="eyebrow">MIT STS</p>
         <h2>{{ mit.mit_user.name }}</h2>
@@ -14,6 +14,7 @@
 
     <div class="track-actions">
         <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">+ Assign Task</a>
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.export_tasks_pdf', mit_id=mit.id) }}">Export PDF</a>
         <a class="btn btn-secondary" href="{{ url_for('mit_sts.list_mits') }}">Back to MIT List</a>
     </div>
 </div>
@@ -37,38 +38,38 @@
 {% endif %}
 {% include "partials/doughy.html" %}
 
-<div class="card" style="margin-bottom: 18px;">
+<div class="card level-summary-card" style="margin-bottom: 18px;">
     <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
         <div>
             <h3>MIT Record Summary</h3>
-            <p>Core record details and current training status.</p>
+            <p>Core record details, coach ownership, and current task health.</p>
         </div>
         <div class="badge">
             Record #{{ mit.id }}
         </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap:16px;">
-        <div>
+    <div class="level-summary-grid">
+        <div class="level-summary-stat">
             <div class="stat-label">Store</div>
-            <div style="margin-top:8px; font-size:18px; font-weight:700;">{{ mit.store_number or 'Not set' }}</div>
+            <div class="level-summary-value">{{ mit.store_number or 'Not set' }}</div>
         </div>
 
-        <div>
+        <div class="level-summary-stat">
             <div class="stat-label">Current Level</div>
-            <div style="margin-top:8px;">
-                <span class="pill pill-neutral">Level {{ mit.current_level }}</span>
+            <div class="level-summary-pill-wrap">
+                <span class="pill pill-info">Level {{ mit.current_level }}</span>
             </div>
         </div>
 
-        <div>
+        <div class="level-summary-stat">
             <div class="stat-label">Coach</div>
-            <div style="margin-top:8px; font-size:18px; font-weight:700;">{{ mit.coach_user.name if mit.coach_user else 'Unassigned' }}</div>
+            <div class="level-summary-value">{{ mit.coach_user.name if mit.coach_user else 'Unassigned' }}</div>
         </div>
 
-        <div>
+        <div class="level-summary-stat">
             <div class="stat-label">Status</div>
-            <div style="margin-top:8px;">
+            <div class="level-summary-pill-wrap">
                 {% if mit.sts_status == "ready" %}
                     <span class="pill pill-success">Ready</span>
                 {% elif mit.sts_status == "blocked" %}
@@ -84,118 +85,129 @@
         </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap:16px; margin-top:20px;">
-        <div>
+    <div class="level-summary-grid" style="margin-top: 18px;">
+        <div class="level-summary-stat">
             <div class="stat-label">Start Date</div>
-            <div style="margin-top:8px; font-weight:700;">{{ mit.start_date.strftime('%Y-%m-%d') if mit.start_date else 'Not set' }}</div>
+            <div class="level-summary-value" style="font-size:18px;">{{ mit.start_date.strftime('%Y-%m-%d') if mit.start_date else 'Not set' }}</div>
         </div>
 
-        <div>
+        <div class="level-summary-stat">
             <div class="stat-label">Next Review</div>
-            <div style="margin-top:8px; font-weight:700;">{{ mit.next_review_date.strftime('%Y-%m-%d') if mit.next_review_date else 'Not set' }}</div>
+            <div class="level-summary-value" style="font-size:18px;">{{ mit.next_review_date.strftime('%Y-%m-%d') if mit.next_review_date else 'Not set' }}</div>
         </div>
 
-        <div>
-            <div class="stat-label">Overall Progress</div>
-            <div style="margin-top:8px; font-weight:700;">{{ overall_progress }}%</div>
+        <div class="level-summary-stat">
+            <div class="stat-label">Open Tasks</div>
+            <div class="level-summary-value">{{ open_tasks_count }}</div>
         </div>
 
-        <div>
-            <div class="stat-label">Incomplete This Level</div>
-            <div style="margin-top:8px; font-weight:700;">{{ incomplete_count }}</div>
+        <div class="level-summary-stat">
+            <div class="stat-label">Overdue Tasks</div>
+            <div class="level-summary-value">{{ overdue_tasks_count }}</div>
         </div>
     </div>
 
     {% if mit.notes %}
-    <div style="margin-top:20px; padding-top:18px; border-top:1px solid rgba(255,255,255,0.08);">
+    <div style="margin-top:20px;">
         <div class="stat-label">Notes</div>
-        <div class="lesson-summary" style="margin-top:8px;">{{ mit.notes }}</div>
+        <div class="review-note-box" style="margin-top:8px;">
+            {{ mit.notes }}
+        </div>
     </div>
     {% endif %}
 </div>
 
-<div class="stats-grid" style="grid-template-columns: repeat(4, minmax(180px, 1fr));">
+<div class="stats-grid">
     <div class="card stat-card">
-        <span class="stat-label">Overall Progress</span>
-        <h3>{{ overall_progress }}%</h3>
+        <p class="stat-label">Overall Progress</p>
+        <h3 class="stat-value">{{ overall_progress }}%</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{ overall_progress }}%;"></div>
+        </div>
     </div>
 
     <div class="card stat-card">
-        <span class="stat-label">Open Tasks</span>
-        <h3>{{ open_tasks_count }}</h3>
+        <p class="stat-label">Current Level Progress</p>
+        <h3 class="stat-value">{{ current_level_progress }}%</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{ current_level_progress }}%;"></div>
+        </div>
     </div>
 
     <div class="card stat-card">
-        <span class="stat-label">Overdue</span>
-        <h3>{{ overdue_tasks_count }}</h3>
+        <p class="stat-label">Incomplete Current Level Items</p>
+        <h3 class="stat-value">{{ incomplete_count }}</h3>
     </div>
 
     <div class="card stat-card">
-        <span class="stat-label">Submitted</span>
-        <h3>{{ submitted_tasks_count }}</h3>
+        <p class="stat-label">Submitted Tasks</p>
+        <h3 class="stat-value">{{ submitted_tasks_count }}</h3>
     </div>
 </div>
 
 <div class="card" style="margin-top: 18px;">
     <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
         <div>
-            <h3>Level Records</h3>
-            <p>Open each level to review requirements and completion status.</p>
+            <h3>Level Progress</h3>
+            <p>Open a level to review STS items, active tasks, and completion details.</p>
         </div>
-        <div class="track-meta" style="margin-top:0;">
-            <span>Target Level:</span>
-            <span>{{ mit.target_level|upper }}</span>
+        <div class="badge">
+            3 Levels
         </div>
     </div>
 
     <div class="table-wrapper">
-        <table class="data-table">
+        <table class="data-table level-review-table">
             <thead>
                 <tr>
-                    <th style="min-width: 140px;">Level</th>
-                    <th style="min-width: 180px;">Progress</th>
-                    <th>Current</th>
-                    <th>Status View</th>
-                    <th style="text-align:center; min-width: 120px;">Actions</th>
+                    <th style="min-width: 120px;">Level</th>
+                    <th style="min-width: 220px;">Progress</th>
+                    <th style="min-width: 120px;">Current</th>
+                    <th style="min-width: 120px;">Status</th>
+                    <th style="min-width: 120px; text-align:center;">Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for lvl, prog in [(1, level_1_progress), (2, level_2_progress), (3, level_3_progress)] %}
-                <tr>
+                <tr class="level-review-row">
                     <td>
-                        <strong>Level {{ lvl }}</strong>
+                        <div class="review-item-cell">
+                            <div class="review-item-title">Level {{ lvl }}</div>
+                            <div class="review-item-description">STS training track</div>
+                        </div>
                     </td>
 
-                    <td>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; color:#94a3b8; margin-bottom:4px;">
+                    <td style="min-width: 220px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; color:#64748b;">
                             <span>{{ prog }}%</span>
-                            <span>Completion</span>
                         </div>
-                        <div class="progress-bar" style="margin-top:0;">
+                        <div class="progress-bar">
                             <div class="progress-fill" style="width: {{ prog }}%;"></div>
                         </div>
                     </td>
 
                     <td>
                         {% if mit.current_level == lvl %}
-                            <span class="pill pill-info">Current Level</span>
+                            <span class="pill pill-info review-pill">Current Level</span>
                         {% else %}
-                            <span class="pill pill-muted">—</span>
+                            <span class="review-empty-text">—</span>
                         {% endif %}
                     </td>
 
                     <td>
                         {% if prog == 100 %}
-                            <span class="pill pill-success">Complete</span>
+                            <span class="pill pill-success review-pill">Complete</span>
                         {% elif prog > 0 %}
-                            <span class="pill pill-warning">In Progress</span>
+                            <span class="pill pill-warning review-pill">In Progress</span>
                         {% else %}
-                            <span class="pill pill-muted">Not Started</span>
+                            <span class="pill pill-muted review-pill">Not Started</span>
                         {% endif %}
                     </td>
 
                     <td style="text-align:center;">
-                        <a class="btn btn-secondary btn-sm" href="{{ url_for('mit_sts.view_level', mit_id=mit.id, level_number=lvl) }}">Open</a>
+                        <div class="review-actions">
+                            <a class="btn btn-secondary btn-sm review-btn-secondary" href="{{ url_for('mit_sts.view_level', mit_id=mit.id, level_number=lvl) }}">Open</a>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
@@ -212,19 +224,19 @@
     </div>
 
     <div class="table-wrapper">
-        <table class="data-table">
+        <table class="data-table level-review-table">
             <thead>
                 <tr>
-                    <th>Effective Date</th>
-                    <th>From</th>
-                    <th>To</th>
-                    <th>Approved By</th>
-                    <th>Note</th>
+                    <th style="min-width: 130px;">Effective Date</th>
+                    <th style="min-width: 100px;">From</th>
+                    <th style="min-width: 100px;">To</th>
+                    <th style="min-width: 180px;">Approved By</th>
+                    <th style="min-width: 180px;">Note</th>
                 </tr>
             </thead>
             <tbody>
                 {% for promotion in promotions %}
-                <tr>
+                <tr class="level-review-row">
                     <td>{{ promotion.effective_date.strftime('%Y-%m-%d') if promotion.effective_date else '—' }}</td>
                     <td>Level {{ promotion.from_level }}</td>
                     <td>{{ promotion.to_level|upper }}</td>

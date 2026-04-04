@@ -14,31 +14,22 @@
                     <div class="brand-mark">BPA</div>
                     <div>
                         <h1>Boston Pie Academy</h1>
-                        <p>Training Platform</p>
+                        <p>MIT STS Platform</p>
                     </div>
                 </div>
 
                 {% if current_user.is_authenticated %}
                 <nav class="nav">
-                    {% if current_user.role == 'tm' %}
-                    <a href="{{ url_for('academy.my_training') }}">My Training</a>
+                    {% if current_user.role == 'mit' %}
+                        <a href="{{ url_for('mit_sts.my_mit') }}">My MIT STS</a>
 
-                    {% elif current_user.role == 'mit' %}
-                    <a href="{{ url_for('mit_sts.my_mit') }}">My MIT STS</a>
-
-                    {% elif current_user.role == 'coach' %}
-                    <a href="{{ url_for('academy.dashboard') }}">Dashboard</a>
-                    <a href="{{ url_for('academy.manage_users') }}">Users</a>
-                    <a href="{{ url_for('mit_sts.dashboard') }}">MIT STS</a>
-                    <a href="{{ url_for('mit_sts.promotion_queue') }}">Promotion Queue</a>
-
-                    {% else %}
-                    <a href="{{ url_for('academy.dashboard') }}">Dashboard</a>
-                    <a href="{{ url_for('academy.tracks_library') }}">Tracks</a>
-                    <a href="{{ url_for('academy.manage_users') }}">Users</a>
-                    <a href="{{ url_for('academy.manage_assignments') }}">Assignments</a>
-                    <a href="{{ url_for('mit_sts.dashboard') }}">MIT STS</a>
-                    <a href="{{ url_for('mit_sts.promotion_queue') }}">Promotion Queue</a>
+                    {% elif current_user.role in ['coach', 'admin', 'training_director'] %}
+                        <a href="{{ url_for('mit_sts.dashboard') }}">MIT Dashboard</a>
+                        <a href="{{ url_for('mit_sts.list_mits') }}">All MITs</a>
+                        <a href="{{ url_for('mit_sts.new_mit') }}">+ New MIT</a>
+                        <a href="{{ url_for('mit_sts.promotion_queue') }}">Promotion Queue</a>
+                        <a href="{{ url_for('mit_sts.template_library') }}">STS Templates</a>
+                        <a href="{{ url_for('mit_sts.list_users') }}">Users</a>
                     {% endif %}
                 </nav>
                 {% endif %}
@@ -57,13 +48,13 @@
 
         <main class="main-content">
             {% with messages = get_flashed_messages(with_categories=true) %}
-              {% if messages %}
-                <div class="flash-stack">
-                  {% for category, message in messages %}
-                    <div class="flash flash-{{ category }}">{{ message }}</div>
-                  {% endfor %}
-                </div>
-              {% endif %}
+                {% if messages %}
+                    <div class="flash-stack">
+                        {% for category, message in messages %}
+                            <div class="flash flash-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
             {% endwith %}
 
             {% block content %}{% endblock %}
