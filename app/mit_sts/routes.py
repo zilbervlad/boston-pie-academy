@@ -36,6 +36,40 @@ def is_coach():
 # HELPERS
 # --------------------------------------------------
 
+def user_can_access_mit_profile(profile):
+    return is_coach() or (
+        current_user.is_authenticated
+        and profile
+        and profile.user_id == current_user.id
+    )
+
+
+def get_task_progress_row(task):
+    if not getattr(task, "related_template_item_id", None):
+        return None
+
+    return MITLevelProgress.query.filter_by(
+        mit_profile_id=task.mit_profile_id,
+        template_item_id=task.related_template_item_id,
+    ).first()
+
+
+def redirect_for_task(task):
+    if getattr(task, "related_template_item_id", None):
+        template = MITLevelTemplate.query.get(task.related_template_item_id)
+        if template:
+            return redirect(
+                url_for(
+                    "mit_sts.view_level",
+                    mit_id=task.mit_profile_id,
+                    level_number=template.level_number,
+                )
+            )
+
+    return redirect(url_for("mit_sts.view_tasks", mit_id=task.mit_profile_id))
+
+
+
 def get_task_counts(mit_profile_id):
     tasks = MITTask.query.filter_by(mit_profile_id=mit_profile_id).all()
     today = date.today()
@@ -883,7 +917,7 @@ def my_mit():
 def view_mit(mit_id):
     profile = MITProfile.query.get_or_404(mit_id)
 
-    if not is_coach() and profile.user_id != current_user.id:
+    if not user_can_access_mit_profile(profile):
         return redirect(url_for("mit_sts.dashboard"))
 
     ensure_progress_rows_for_mit(profile)
@@ -950,7 +984,7 @@ def view_level(mit_id, level_number):
 
     profile = MITProfile.query.get_or_404(mit_id)
 
-    if not is_coach() and profile.user_id != current_user.id:
+    if not user_can_access_mit_profile(profile):
         return redirect(url_for("mit_sts.dashboard"))
 
     ensure_progress_rows_for_mit(profile)
@@ -1420,14 +1454,118 @@ def view_tasks(mit_id):
 @mit_sts_bp.route("/tasks/<int:task_id>/status", methods=["POST"])
 @login_required
 def update_task_status(task_id):
+    task = MITTask.query.get_or_404(task_id)
+    profile = MITProfile.query.get_or_404(task.mit_profile_id)
+
+    if not user_can_access_mit_profile(profile):
+        return redirect(url_for("mit_sts.dashboard"))
+
+    requested_status = request.form.get("status", "").strip()
+
+    coach_allowed_statuses = ["open", "in_progress", "submitted", "verified", "cancelled"]
+    mit_allowed_statuses = ["in_progress", "submitted"]
+
+    if is_coach():
+        allowed_statuses = coach_allowed_statuses
+    else:
+        if getattr(task, "related_template_item_id", None) is None:
+            flash("You cannot update that task from your MIT dashboard.", "danger")
+            return redirect_for_task(task)
+        allowed_statuses = mit_allowed_statuses
+
+    if requested_status not in allowed_statuses:
+        flash("Invalid task status.", "danger")
+        return redirect_for_task(task)
+
+    progress = get_task_progress_row(task)
+
+    if not is_coach() and requested_status == "submitted":
+        if task.status not in ["open", "in_progress"]:
+            flash("Only active tasks can be submitted for verification.", "danger")
+            return redirect_for_task(task)
+
+    task.status = requested_status
+    sync_progress_from_task(task, progress)
+    db.session.commit()
+
+    if requested_status == "submitted":
+        flash("Task submitted for verification.", "success")
+    elif requested_status == "verified":
+        flash("Task verified successfully.", "success")
+    else:
+        flash("Task status updated.", "success")
+
+    return redirect_for_task(task)
+
+
+@mit_sts_bp.route("/tasks/<int:task_id>/submit", methods=["POST"])
+@login_required
+def submit_task_for_verification(task_id):
+    task = MITTask.query.get_or_404(task_id)
+    profile = MITProfile.query.get_or_404(task.mit_profile_id)
+
+    if not user_can_access_mit_profile(profile):
+        return redirect(url_for("mit_sts.dashboard"))
+
+    if is_coach():
+        # Coaches can still use this shortcut if they are reviewing as the MIT.
+        pass
+    elif getattr(task, "related_template_item_id", None) is None:
+        flash("That task cannot be submitted from the MIT side.", "danger")
+        return redirect_for_task(task)
+
+    if task.status not in ["open", "in_progress"]:
+        flash("Only active tasks can be submitted for verification.", "danger")
+        return redirect_for_task(task)
+
+    progress = get_task_progress_row(task)
+    task.status = "submitted"
+    sync_progress_from_task(task, progress)
+    db.session.commit()
+
+    flash("Task submitted for verification.", "success")
+    return redirect_for_task(task)
+
+
+@mit_sts_bp.route("/tasks/<int:task_id>/verify", methods=["POST"])
+@login_required
+def verify_task(task_id):
     if not is_coach():
         return redirect(url_for("mit_sts.dashboard"))
 
     task = MITTask.query.get_or_404(task_id)
-    task.status = request.form.get("status")
+    progress = get_task_progress_row(task)
+
+    if task.status == "cancelled":
+        flash("Cancelled tasks cannot be verified.", "danger")
+        return redirect_for_task(task)
+
+    task.status = "verified"
+    sync_progress_from_task(task, progress)
     db.session.commit()
 
-    return redirect(url_for("mit_sts.view_tasks", mit_id=task.mit_profile_id))
+    flash("Task verified successfully.", "success")
+    return redirect_for_task(task)
+
+
+@mit_sts_bp.route("/tasks/<int:task_id>/send-back", methods=["POST"])
+@login_required
+def send_task_back(task_id):
+    if not is_coach():
+        return redirect(url_for("mit_sts.dashboard"))
+
+    task = MITTask.query.get_or_404(task_id)
+    progress = get_task_progress_row(task)
+
+    if task.status == "verified":
+        task.completed_at = None
+
+    task.status = "in_progress"
+    sync_progress_from_task(task, progress)
+    db.session.commit()
+
+    flash("Task sent back to MIT.", "success")
+    return redirect_for_task(task)
 
 
 # --------------------------------------------------
@@ -1701,3 +1839,68 @@ def export_tasks_pdf(mit_id):
         download_name=f"{safe_name}_assigned_tasks.pdf",
         mimetype="application/pdf",
     )
+
+# --- MIT TASK VERIFICATION ROUTES ---
+
+@mit_sts_bp.route("/task/<int:task_id>/submit", methods=["POST"])
+@login_required
+def submit_task_for_verification(task_id):
+    task = MITTask.query.get_or_404(task_id)
+
+    if current_user.role != "mit":
+        flash("Only MITs can submit tasks.", "danger")
+        return redirect(request.referrer or url_for("mit_sts.dashboard"))
+
+    task.status = "submitted"
+    task.updated_at = datetime.utcnow()
+
+    db.session.commit()
+    flash("Task submitted for verification.", "success")
+
+    return redirect(request.referrer or url_for("mit_sts.dashboard"))
+
+
+@mit_sts_bp.route("/task/<int:task_id>/verify", methods=["POST"])
+@login_required
+def verify_task(task_id):
+    task = MITTask.query.get_or_404(task_id)
+
+    if current_user.role not in ["coach", "admin", "training_director"]:
+        flash("Not authorized.", "danger")
+        return redirect(request.referrer or url_for("mit_sts.dashboard"))
+
+    task.status = "verified"
+    task.updated_at = datetime.utcnow()
+
+    progress = MITLevelProgress.query.filter_by(
+        mit_id=task.mit_id,
+        level_template_id=task.level_template_id
+    ).first()
+
+    if progress:
+        progress.status = "complete"
+        progress.completed_date = datetime.utcnow()
+        progress.verified_by = current_user.id
+
+    db.session.commit()
+    flash("Task verified.", "success")
+
+    return redirect(request.referrer or url_for("mit_sts.dashboard"))
+
+
+@mit_sts_bp.route("/task/<int:task_id>/send-back", methods=["POST"])
+@login_required
+def send_task_back(task_id):
+    task = MITTask.query.get_or_404(task_id)
+
+    if current_user.role not in ["coach", "admin", "training_director"]:
+        flash("Not authorized.", "danger")
+        return redirect(request.referrer or url_for("mit_sts.dashboard"))
+
+    task.status = "in_progress"
+    task.updated_at = datetime.utcnow()
+
+    db.session.commit()
+    flash("Task sent back to MIT.", "warning")
+
+    return redirect(request.referrer or url_for("mit_sts.dashboard"))

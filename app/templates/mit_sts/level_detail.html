@@ -119,7 +119,7 @@
                             <th style="min-width: 120px;">Progress</th>
                             <th style="min-width: 220px;">Task</th>
                             <th style="min-width: 140px;">Verified</th>
-                            <th style="min-width: 150px; text-align:center;">Actions</th>
+                            <th style="min-width: 220px; text-align:center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -182,7 +182,7 @@
                             </td>
 
                             <td style="text-align:center;">
-                                <div class="review-actions">
+                                <div class="review-actions" style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
                                     {% if can_edit %}
                                         {% if progress and progress.status == 'complete' %}
                                         <form method="POST" action="{{ url_for('mit_sts.update_progress', progress_id=progress.id) }}">
@@ -199,7 +199,27 @@
                                         {% if not active_task %}
                                         <a href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}" class="btn btn-secondary btn-sm review-btn-secondary">Assign</a>
                                         {% endif %}
-                                    {% else %}
+                                    {% endif %}
+
+                                    {% if active_task %}
+                                        {% if user.role == "mit" and active_task.status in ["open", "in_progress"] %}
+                                        <form method="POST" action="{{ url_for('mit_sts.submit_task_for_verification', task_id=active_task.id) }}">
+                                            <button type="submit" class="btn btn-primary btn-sm review-btn-primary">Submit</button>
+                                        </form>
+                                        {% endif %}
+
+                                        {% if user.role in ["coach", "admin", "training_director"] and active_task.status == "submitted" %}
+                                        <form method="POST" action="{{ url_for('mit_sts.verify_task', task_id=active_task.id) }}">
+                                            <button type="submit" class="btn btn-success btn-sm">Verify</button>
+                                        </form>
+
+                                        <form method="POST" action="{{ url_for('mit_sts.send_task_back', task_id=active_task.id) }}">
+                                            <button type="submit" class="btn btn-secondary btn-sm review-btn-secondary">Send Back</button>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
+
+                                    {% if not can_edit and not active_task %}
                                         <span class="review-empty-text">—</span>
                                     {% endif %}
                                 </div>
