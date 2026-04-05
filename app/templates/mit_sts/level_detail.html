@@ -259,16 +259,19 @@
 
                                         {% if user.role == "mit" and active_task.status in ["open", "in_progress"] %}
                                         <form method="POST" action="{{ url_for('mit_sts.submit_task_for_verification', task_id=active_task.id) }}">
+                                            <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
                                             <button type="submit" class="btn btn-primary btn-sm review-btn-primary">Submit</button>
                                         </form>
                                         {% endif %}
 
                                         {% if user.role in ["coach", "admin", "training_director"] and active_task.status == "submitted" %}
                                         <form method="POST" action="{{ url_for('mit_sts.verify_task', task_id=active_task.id) }}">
+                                            <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
                                             <button type="submit" class="btn btn-success btn-sm">Verify</button>
                                         </form>
 
                                         <form method="POST" action="{{ url_for('mit_sts.send_task_back', task_id=active_task.id) }}">
+                                            <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
                                             <button type="submit" class="btn btn-secondary btn-sm review-btn-secondary">Send Back</button>
                                         </form>
                                         {% endif %}
