@@ -328,7 +328,63 @@ def view_mit(mit_id):
 
     promotions = MITPromotion.query.filter_by(
         mit_profile_id=profile.id
-    ).order_by(MITPromotion.effective_date.desc()).all()
+    ).order_by(MITPromotion.effective_date.asc()).all()
+
+    today = date.today()
+
+    level_durations = {
+        1: None,
+        2: None,
+        3: None,
+    }
+
+    level_timeline = {
+        1: {"start": profile.start_date, "end": None, "status": "Not Reached"},
+        2: {"start": None, "end": None, "status": "Not Reached"},
+        3: {"start": None, "end": None, "status": "Not Reached"},
+    }
+
+    level_2_date = None
+    level_3_date = None
+
+    for promotion in promotions:
+        to_level = str(promotion.to_level).strip().lower() if promotion.to_level is not None else ""
+        if to_level == "2" and not level_2_date:
+            level_2_date = promotion.effective_date
+        elif to_level == "3" and not level_3_date:
+            level_3_date = promotion.effective_date
+
+    if profile.start_date:
+        level_timeline[1]["start"] = profile.start_date
+
+        if level_2_date:
+            level_timeline[1]["end"] = level_2_date
+            level_timeline[1]["status"] = "Complete"
+            level_durations[1] = round((level_2_date - profile.start_date).days / 7, 1)
+        elif profile.current_level == 1:
+            level_timeline[1]["end"] = today
+            level_timeline[1]["status"] = "In Progress"
+            level_durations[1] = round((today - profile.start_date).days / 7, 1)
+
+    if level_2_date:
+        level_timeline[2]["start"] = level_2_date
+
+        if level_3_date:
+            level_timeline[2]["end"] = level_3_date
+            level_timeline[2]["status"] = "Complete"
+            level_durations[2] = round((level_3_date - level_2_date).days / 7, 1)
+        elif profile.current_level == 2:
+            level_timeline[2]["end"] = today
+            level_timeline[2]["status"] = "In Progress"
+            level_durations[2] = round((today - level_2_date).days / 7, 1)
+
+    if level_3_date:
+        level_timeline[3]["start"] = level_3_date
+
+        if profile.current_level == 3:
+            level_timeline[3]["end"] = today
+            level_timeline[3]["status"] = "In Progress"
+            level_durations[3] = round((today - level_3_date).days / 7, 1)
 
     return render_template(
         "mit_sts/mit_detail.html",
@@ -343,10 +399,13 @@ def view_mit(mit_id):
         overdue_tasks_count=overdue_tasks_count,
         submitted_tasks_count=submitted_tasks_count,
         promotions=promotions,
+        level_durations=level_durations,
+        level_timeline=level_timeline,
         user=current_user,
         can_edit=is_coach(),
         can_manage_templates=is_coach(),
     )
+
 
 @mit_sts_bp.route("/<int:mit_id>/edit", methods=["GET", "POST"])
 @login_required

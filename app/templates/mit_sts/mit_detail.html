@@ -117,6 +117,53 @@
     {% endif %}
 </div>
 
+
+<div class="card" style="margin-top: 18px;">
+    <div class="card-header">
+        <h3>Time in Level</h3>
+        <p>How long this MIT has spent in each level.</p>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table level-review-table">
+            <thead>
+                <tr>
+                    <th style="min-width: 120px;">Level</th>
+                    <th style="min-width: 140px;">Start Date</th>
+                    <th style="min-width: 140px;">End Date</th>
+                    <th style="min-width: 120px;">Weeks</th>
+                    <th style="min-width: 140px;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lvl in [1, 2, 3] %}
+                <tr class="level-review-row">
+                    <td>Level {{ lvl }}</td>
+                    <td>{{ level_timeline[lvl].start.strftime('%Y-%m-%d') if level_timeline[lvl].start else '—' }}</td>
+                    <td>
+                        {% if level_timeline[lvl].status == "In Progress" %}
+                            Today
+                        {% else %}
+                            {{ level_timeline[lvl].end.strftime('%Y-%m-%d') if level_timeline[lvl].end else '—' }}
+                        {% endif %}
+                    </td>
+                    <td>{{ level_durations[lvl] if level_durations[lvl] is not none else '—' }}</td>
+                    <td>
+                        {% if level_timeline[lvl].status == "Complete" %}
+                            <span class="pill pill-success review-pill">Complete</span>
+                        {% elif level_timeline[lvl].status == "In Progress" %}
+                            <span class="pill pill-info review-pill">In Progress</span>
+                        {% else %}
+                            <span class="pill pill-muted review-pill">Not Reached</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <div class="stats-grid">
     <div class="card stat-card">
         <p class="stat-label">Overall Progress</p>
