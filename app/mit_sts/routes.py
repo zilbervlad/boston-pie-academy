@@ -436,54 +436,65 @@ def dashboard():
         .all()
     )
 
-    overdue_tasks_count = 0
-    submitted_tasks_count = 0
     recent_progress_map = {}
 
     level_1_count = 0
     level_2_count = 0
     level_3_count = 0
-    ready_count = 0
-    blocked_count = 0
+
+    total_level_sum = 0
+    total_mit_count = 0
+
+    coach_scores = defaultdict(lambda: {
+        "coach_name": "Unassigned",
+        "total_level": 0,
+        "mit_count": 0,
+        "score": 0,
+    })
 
     for mit in mits:
-        if getattr(mit, "current_level", None) == 1:
+        current_level = getattr(mit, "current_level", 1) or 1
+        progress = calculate_level_progress(mit.id, current_level)
+        recent_progress_map[mit.id] = progress
+
+        total_level_sum += current_level
+        total_mit_count += 1
+
+        if current_level == 1:
             level_1_count += 1
-        elif getattr(mit, "current_level", None) == 2:
+        elif current_level == 2:
             level_2_count += 1
-        elif getattr(mit, "current_level", None) == 3:
+        elif current_level == 3:
             level_3_count += 1
 
-        if getattr(mit, "sts_status", None) == "ready":
-            ready_count += 1
-        elif getattr(mit, "sts_status", None) == "blocked":
-            blocked_count += 1
+        coach = getattr(mit, "coach_user", None)
+        coach_name = coach.name if coach else "Unassigned"
 
-        _, overdue, submitted = get_task_counts(mit.id)
-        overdue_tasks_count += overdue
-        submitted_tasks_count += submitted
+        coach_scores[coach_name]["coach_name"] = coach_name
+        coach_scores[coach_name]["total_level"] += current_level
+        coach_scores[coach_name]["mit_count"] += 1
 
-        current_level = getattr(mit, "current_level", 1) or 1
-        recent_progress_map[mit.id] = calculate_level_progress(mit.id, current_level)
+    company_score = round(total_level_sum / total_mit_count, 1) if total_mit_count else 0
+
+    for coach in coach_scores.values():
+        if coach["mit_count"]:
+            coach["score"] = round(coach["total_level"] / coach["mit_count"], 1)
 
     recent_mits = mits[:5]
 
     return render_template(
         "mit_sts/dashboard.html",
         mits=mits,
-        overdue_tasks_count=overdue_tasks_count,
-        submitted_tasks_count=submitted_tasks_count,
+        recent_mits=recent_mits,
         total_mits=len(mits),
-        ready_count=ready_count,
-        blocked_count=blocked_count,
         level_1_count=level_1_count,
         level_2_count=level_2_count,
         level_3_count=level_3_count,
-        recent_mits=recent_mits,
+        company_score=company_score,
+        coach_scores=coach_scores,
         recent_progress_map=recent_progress_map,
         user=current_user,
     )
-
 
 # --------------------------------------------------
 # TEMPLATE LIBRARY
@@ -1581,9 +1592,31 @@ def promotion_queue():
     if not is_coach():
         return redirect(url_for("mit_sts.dashboard"))
 
-    queue = MITPromotion.query.all()
-    return render_template("mit_sts/promotion_queue.html", queue=queue)
+    mits = (
+        MITProfile.query
+        .join(User, MITProfile.user_id == User.id)
+        .filter(User.is_active_user == True)
+        .order_by(MITProfile.created_at.desc())
+        .all()
+    )
 
+    ready_mits = []
+    progress_map = {}
+
+    for mit in mits:
+        current_level = getattr(mit, "current_level", 1) or 1
+        progress = calculate_level_progress(mit.id, current_level)
+        progress_map[mit.id] = progress
+
+        if progress >= 100:
+            ready_mits.append(mit)
+
+    return render_template(
+        "mit_sts/promotion_queue.html",
+        queue=ready_mits,
+        progress_map=progress_map,
+        user=current_user,
+    )
 
 @mit_sts_bp.route("/promote/<int:mit_id>", methods=["POST"])
 @login_required
@@ -1591,17 +1624,33 @@ def promote_mit(mit_id):
     if not is_coach():
         return redirect(url_for("mit_sts.dashboard"))
 
+    mit = MITProfile.query.get_or_404(mit_id)
+
+    current_level = getattr(mit, "current_level", 1) or 1
+
+    if current_level >= 3:
+        flash("This MIT is already at the highest tracked level.", "danger")
+        return redirect(url_for("mit_sts.promotion_queue"))
+
+    next_level = current_level + 1
+
     promotion = MITPromotion(
-        mit_profile_id=mit_id,
+        mit_profile_id=mit.id,
         approved_by_user_id=current_user.id,
         effective_date=date.today(),
-        from_level=1,
-        to_level="2",
+        from_level=current_level,
+        to_level=str(next_level),
     )
+
+    mit.current_level = next_level
+    mit.target_level = get_target_level(next_level)
+    mit.sts_status = "on_track"
+    mit.next_review_date = None
 
     db.session.add(promotion)
     db.session.commit()
 
+    flash(f"MIT promoted from Level {current_level} to Level {next_level}.", "success")
     return redirect(url_for("mit_sts.promotion_queue"))
 
 
