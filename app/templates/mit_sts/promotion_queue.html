@@ -10,52 +10,53 @@
         <p class="subtle">MITs whose current level is 100% complete.</p>
     </div>
 
-    <div class="track-actions">
-        <a class="btn btn-secondary" href="{{ url_for('mit_sts.dashboard') }}">Back to MIT Dashboard</a>
-    </div>
+    <a href="{{ url_for('mit_sts.dashboard') }}" class="btn btn-secondary">
+        Back to MIT Dashboard
+    </a>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <h3>Ready for Promotion</h3>
-        <p>{{ ready_mits|length }} MIT{{ '' if ready_mits|length == 1 else 's' }} ready</p>
+<div class="card" style="margin-top: 24px;">
+    <div class="section-header" style="margin-bottom: 18px;">
+        <h3 style="margin: 0;">Ready for Promotion</h3>
+        <p class="subtle" style="margin: 6px 0 0 0;">{{ queue|length }} MIT{% if queue|length != 1 %}s{% endif %} ready</p>
     </div>
 
-    {% if ready_mits %}
-    <div class="track-list">
-        {% for mit, progress, next_level in ready_mits %}
-        <div class="track-row">
-            <div style="width:100%;">
-                <div class="track-title">{{ mit.mit_user.name }}</div>
-                <div class="track-meta">
-                    <span>Store {{ mit.store_number or 'Not set' }}</span>
-                    <span>•</span>
-                    <span>Current Level {{ mit.current_level }}</span>
-                    <span>•</span>
-                    <span>{{ progress }}% complete</span>
-                    <span>•</span>
-                    <span>Next: {{ next_level|upper }}</span>
-                </div>
-
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: {{ progress }}%;"></div>
-                </div>
-            </div>
-
-            <div class="track-actions">
-                <form method="POST" action="{{ url_for('mit_sts.promote_mit', mit_id=mit.id) }}">
-                    <input type="date" name="effective_date">
-                    <input type="text" name="note" placeholder="Promotion note">
-                    <button type="submit" class="btn btn-primary">Promote</button>
-                </form>
-            </div>
-        </div>
-        {% endfor %}
+    {% if queue %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>MIT</th>
+                    <th>Store</th>
+                    <th>Coach</th>
+                    <th>Current Level</th>
+                    <th>Progress</th>
+                    <th style="width: 220px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mit in queue %}
+                <tr>
+                    <td>{{ mit.mit_user.name if mit.mit_user else "MIT #" ~ mit.id }}</td>
+                    <td>{{ mit.store_number or "-" }}</td>
+                    <td>{{ mit.coach_user.name if mit.coach_user else "-" }}</td>
+                    <td>Level {{ mit.current_level }}</td>
+                    <td><strong>{{ progress_map.get(mit.id, 0) }}%</strong></td>
+                    <td style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <a href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}" class="btn btn-secondary btn-sm">Open</a>
+                        <form method="POST" action="{{ url_for('mit_sts.promote_mit', mit_id=mit.id) }}">
+                            <button type="submit" class="btn btn-primary btn-sm">Promote</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
     {% else %}
-    <div class="empty-state">
-        <h3>No MITs ready right now</h3>
-        <p>Once a current level reaches 100%, the MIT will appear here.</p>
+    <div style="border: 1px dashed #cbd5e1; border-radius: 24px; padding: 40px 24px; text-align: center;">
+        <h3 style="margin-bottom: 10px;">No MITs ready right now</h3>
+        <p class="subtle" style="margin: 0;">Once a current level reaches 100%, the MIT will appear here.</p>
     </div>
     {% endif %}
 </div>
