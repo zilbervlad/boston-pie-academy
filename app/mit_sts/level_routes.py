@@ -57,17 +57,19 @@ def update_progress(progress_id):
 
     progress = MITLevelProgress.query.get_or_404(progress_id)
     new_status = request.form.get("status", "not_started").strip()
+    return_anchor = request.form.get("return_anchor", "").strip()
 
     if new_status not in ["not_started", "in_progress", "complete"]:
         flash("Invalid status.", "danger")
         template = MITLevelTemplate.query.get(progress.template_item_id)
-        return redirect(
-            url_for(
-                "mit_sts.view_level",
-                mit_id=progress.mit_profile_id,
-                level_number=template.level_number if template else 1,
-            )
+        destination = url_for(
+            "mit_sts.view_level",
+            mit_id=progress.mit_profile_id,
+            level_number=template.level_number if template else 1,
         )
+        if return_anchor:
+            destination += f"#{return_anchor}"
+        return redirect(destination)
 
     progress.status = new_status
 
@@ -109,10 +111,13 @@ def update_progress(progress_id):
 
     template = MITLevelTemplate.query.get(progress.template_item_id)
     flash("STS item updated.", "success")
-    return redirect(
-        url_for(
-            "mit_sts.view_level",
-            mit_id=progress.mit_profile_id,
-            level_number=template.level_number if template else 1,
-        )
+
+    destination = url_for(
+        "mit_sts.view_level",
+        mit_id=progress.mit_profile_id,
+        level_number=template.level_number if template else 1,
     )
+    if return_anchor:
+        destination += f"#{return_anchor}"
+
+    return redirect(destination)
