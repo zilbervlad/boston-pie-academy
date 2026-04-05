@@ -127,7 +127,7 @@
                         {% set progress = progress_map.get(item.id) %}
                         {% set active_task = active_task_map.get(item.id) %}
                         {% set last_task = all_linked_task_map.get(item.id) %}
-                        <tr class="level-review-row">
+                        <tr class="level-review-row" id="item-{{ item.id }}">
                             <td>
                                 <div class="review-item-cell">
                                     <div class="review-item-title">{{ item.item_name }}</div>
@@ -187,17 +187,20 @@
                                         {% if progress and progress.status == 'complete' %}
                                         <form method="POST" action="{{ url_for('mit_sts.update_progress', progress_id=progress.id) }}">
                                             <input type="hidden" name="status" value="not_started">
+                                            <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
                                             <button type="submit" class="btn btn-secondary btn-sm review-btn-secondary">Reset</button>
                                         </form>
                                         {% else %}
                                         <form method="POST" action="{{ url_for('mit_sts.update_progress', progress_id=progress.id) }}">
                                             <input type="hidden" name="status" value="complete">
+                                            <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
                                             <button type="submit" class="btn btn-primary btn-sm review-btn-primary">Complete</button>
                                         </form>
                                         {% endif %}
 
                                         {% if not active_task and progress %}
                                         <form method="POST" action="{{ url_for('mit_sts.quick_add_task', task_id=progress.id) }}">
+                                            <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
                                             <button type="submit" class="btn btn-secondary btn-sm review-btn-secondary">Assign</button>
                                         </form>
                                         {% endif %}

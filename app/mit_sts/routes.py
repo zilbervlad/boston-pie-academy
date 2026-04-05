@@ -1037,17 +1037,19 @@ def update_progress(progress_id):
 
     progress = MITLevelProgress.query.get_or_404(progress_id)
     new_status = request.form.get("status", "not_started").strip()
+    return_anchor = request.form.get("return_anchor", "").strip()
 
     if new_status not in ["not_started", "in_progress", "complete"]:
         flash("Invalid status.", "danger")
         template = MITLevelTemplate.query.get(progress.template_item_id)
-        return redirect(
-            url_for(
-                "mit_sts.view_level",
-                mit_id=progress.mit_profile_id,
-                level_number=template.level_number if template else 1,
-            )
+        target_url = url_for(
+            "mit_sts.view_level",
+            mit_id=progress.mit_profile_id,
+            level_number=template.level_number if template else 1,
         )
+        if return_anchor:
+            target_url = f"{target_url}#{return_anchor}"
+        return redirect(target_url)
 
     progress.status = new_status
 
@@ -1089,13 +1091,14 @@ def update_progress(progress_id):
 
     template = MITLevelTemplate.query.get(progress.template_item_id)
     flash("STS item updated.", "success")
-    return redirect(
-        url_for(
-            "mit_sts.view_level",
-            mit_id=progress.mit_profile_id,
-            level_number=template.level_number if template else 1,
-        )
+    target_url = url_for(
+        "mit_sts.view_level",
+        mit_id=progress.mit_profile_id,
+        level_number=template.level_number if template else 1,
     )
+    if return_anchor:
+        target_url = f"{target_url}#{return_anchor}"
+    return redirect(target_url)
 
 
 # --------------------------------------------------
@@ -1588,35 +1591,18 @@ def promote_mit(mit_id):
     if not is_coach():
         return redirect(url_for("mit_sts.dashboard"))
 
-    mit = MITProfile.query.get_or_404(mit_id)
-
-    current_level = getattr(mit, "current_level", 1) or 1
-
-    if current_level >= 3:
-        flash("This MIT is already at the highest tracked level.", "danger")
-        return redirect(url_for("mit_sts.promotion_queue"))
-
-    next_level = current_level + 1
-
     promotion = MITPromotion(
-        mit_profile_id=mit.id,
+        mit_profile_id=mit_id,
         approved_by_user_id=current_user.id,
         effective_date=date.today(),
-        from_level=current_level,
-        to_level=str(next_level),
+        from_level=1,
+        to_level="2",
     )
-
-    mit.current_level = next_level
-    mit.target_level = get_target_level(next_level)
-    mit.sts_status = "on_track"
-    mit.next_review_date = None
 
     db.session.add(promotion)
     db.session.commit()
 
-    flash(f"MIT promoted from Level {current_level} to Level {next_level}.", "success")
     return redirect(url_for("mit_sts.promotion_queue"))
-
 
 
 # --------------------------------------------------
