@@ -22,11 +22,7 @@ def export_tasks_pdf(mit_id):
         .all()
     )
 
-    open_count = sum(1 for t in tasks if t.status == "open")
-    in_progress_count = sum(1 for t in tasks if t.status == "in_progress")
-    submitted_count = sum(1 for t in tasks if t.status == "submitted")
-
-    # ❌ removed verified_count (not needed anymore)
+    total_tasks = len(tasks)
 
     overdue_count = sum(
         1 for t in tasks
@@ -122,22 +118,24 @@ def export_tasks_pdf(mit_id):
     story.append(info_table)
     story.append(Spacer(1, 16))
 
+    # ✅ SIMPLIFIED SUMMARY
     story.append(Paragraph("Task Summary", section_title_style))
 
     summary_data = [[
-        Paragraph("<b>Total Tasks</b><br/>" + str(len(tasks)), body_style),
-        Paragraph("<b>Open</b><br/>" + str(open_count), body_style),
-        Paragraph("<b>In Progress</b><br/>" + str(in_progress_count), body_style),
-        Paragraph("<b>Submitted</b><br/>" + str(submitted_count), body_style),
+        Paragraph("<b>Total Assigned</b><br/>" + str(total_tasks), body_style),
         Paragraph("<b>Overdue</b><br/>" + str(overdue_count), body_style),
     ]]
 
-    summary_table = Table(summary_data, colWidths=[100, 90, 100, 100, 100])
+    summary_table = Table(summary_data, colWidths=[260, 260])
     summary_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
         ("BOX", (0, 0), (-1, -1), 1, colors.HexColor("#E2E8F0")),
         ("INNERGRID", (0, 0), (-1, -1), 1, colors.HexColor("#E2E8F0")),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
     ]))
 
     story.append(summary_table)
