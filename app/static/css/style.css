@@ -1958,3 +1958,6 @@ details.task-manage-dropdown > summary::-webkit-details-marker,
     display: flex;
     align-items: center;
 }
+.level-anchor-row {
+    scroll-margin-top: 120px;
+}

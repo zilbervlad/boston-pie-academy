@@ -127,7 +127,7 @@
                         {% set progress = progress_map.get(item.id) %}
                         {% set active_task = active_task_map.get(item.id) %}
                         {% set last_task = all_linked_task_map.get(item.id) %}
-                        <tr class="level-review-row" id="item-{{ item.id }}">
+                        <tr class="level-review-row level-anchor-row" id="item-{{ item.id }}">
                             <td>
                                 <div class="review-item-cell">
                                     <div class="review-item-title">{{ item.item_name }}</div>
@@ -313,4 +313,39 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const hash = window.location.hash;
+
+    if (hash) {
+        const targetFromHash = document.querySelector(hash);
+        if (targetFromHash) {
+            setTimeout(() => {
+                targetFromHash.scrollIntoView({ behavior: "auto", block: "center" });
+            }, 80);
+        }
+    }
+
+    document.querySelectorAll('form input[name="return_anchor"]').forEach((input) => {
+        const form = input.closest("form");
+        if (!form) return;
+
+        form.addEventListener("submit", function () {
+            sessionStorage.setItem("mit_return_anchor", input.value);
+        });
+    });
+
+    const savedAnchor = sessionStorage.getItem("mit_return_anchor");
+    if (savedAnchor) {
+        const savedTarget = document.getElementById(savedAnchor);
+        if (savedTarget) {
+            setTimeout(() => {
+                savedTarget.scrollIntoView({ behavior: "auto", block: "center" });
+            }, 140);
+        }
+        sessionStorage.removeItem("mit_return_anchor");
+    }
+});
+</script>
 {% endblock %}
