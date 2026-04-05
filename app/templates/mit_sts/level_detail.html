@@ -14,7 +14,7 @@
 
     <div class="track-actions">
         <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Back to MIT Profile</a>
-        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">Open Task Board</a>
+        <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_tasks', mit_id=mit.id) }}">Open Task Board</a>
     </div>
 </div>
 
@@ -25,9 +25,9 @@
 {% elif level_progress >= 80 %}
     {% set message = mit.mit_user.name ~ " is at " ~ level_progress ~ "% on Level " ~ level_number ~ ". Finish the final items and verify cleanly." %}
 {% elif level_progress > 0 %}
-    {% set message = mit.mit_user.name ~ " is in progress on Level " ~ level_progress ~ ". Focus on consistent completion and verification." %}
+    {% set message = mit.mit_user.name ~ " is in progress on Level " ~ level_number ~ ". Focus on consistent completion and verification." %}
 {% else %}
-    {% set message = "Level " ~ level_number ~ " has not started yet. Assign the first few high-value items and build momentum." %}
+    {% set message = "Level " ~ level_number ~ " has not started yet. Start assigning right here from the level screen." %}
 {% endif %}
 {% include "partials/doughy.html" %}
 
@@ -35,7 +35,7 @@
     <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
         <div>
             <h3>Level Summary</h3>
-            <p>This screen is for verifying STS progress. Active task assignment lives on the task board.</p>
+            <p>This screen handles verification and linked task assignment for this level.</p>
         </div>
         <div class="badge">
             Level {{ level_number }} Record
@@ -93,7 +93,7 @@
     <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
         <div>
             <h3>Level {{ level_number }} STS Items</h3>
-            <p>Verify completion here. Assign or manage task workflow from the task board.</p>
+            <p>Verify completion and manage linked tasks directly from this screen.</p>
         </div>
         <div class="track-meta" style="margin-top:0;">
             <span>{{ grouped_items|length }}</span>
@@ -119,7 +119,7 @@
                             <th style="min-width: 120px;">Progress</th>
                             <th style="min-width: 220px;">Task</th>
                             <th style="min-width: 140px;">Verified</th>
-                            <th style="min-width: 220px; text-align:center;">Actions</th>
+                            <th style="min-width: 260px; text-align:center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -156,6 +156,12 @@
                                             {{ task_display_status(active_task)|replace('_', ' ')|title }}
                                         </span>
                                         <div class="review-task-title">{{ active_task.title }}</div>
+                                        {% if active_task.due_date %}
+                                        <div class="review-task-meta">Due {{ active_task.due_date.strftime('%b %d, %Y') }}</div>
+                                        {% endif %}
+                                        {% if active_task.notes %}
+                                        <div class="review-task-meta">Notes: {{ active_task.notes }}</div>
+                                        {% endif %}
                                     </div>
                                 {% elif last_task and last_task.status == 'verified' %}
                                     <div class="review-task-cell">
@@ -182,7 +188,7 @@
                             </td>
 
                             <td style="text-align:center;">
-                                <div class="review-actions" style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+                                <div class="review-actions">
                                     {% if can_edit %}
                                         {% if progress and progress.status == 'complete' %}
                                         <form method="POST" action="{{ url_for('mit_sts.update_progress', progress_id=progress.id) }}">
@@ -197,16 +203,60 @@
                                             <button type="submit" class="btn btn-primary btn-sm review-btn-primary">Complete</button>
                                         </form>
                                         {% endif %}
-
-                                        {% if not active_task and progress %}
-                                        <form method="POST" action="{{ url_for('mit_sts.quick_add_task', task_id=progress.id) }}">
-                                            <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
-                                            <button type="submit" class="btn btn-secondary btn-sm review-btn-secondary">Assign</button>
-                                        </form>
-                                        {% endif %}
                                     {% endif %}
 
                                     {% if active_task %}
+                                        {% if can_edit %}
+                                        <details class="review-inline-panel">
+                                            <summary>Manage Task</summary>
+                                            <form method="POST" action="{{ url_for('mit_sts.manage_board_task', task_id=active_task.id, mit_id=mit.id) }}" class="review-inline-form">
+                                                <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
+
+                                                <div class="review-inline-grid">
+                                                    <div class="form-group">
+                                                        <label>Title</label>
+                                                        <input type="text" name="title" value="{{ active_task.title }}">
+                                                    </div>
+
+                                                    <div class="form-group">
+                                                        <label>Priority</label>
+                                                        <select name="priority">
+                                                            <option value="low" {% if active_task.priority == 'low' %}selected{% endif %}>Low</option>
+                                                            <option value="medium" {% if active_task.priority == 'medium' %}selected{% endif %}>Medium</option>
+                                                            <option value="high" {% if active_task.priority == 'high' %}selected{% endif %}>High</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="form-group">
+                                                        <label>Due Date</label>
+                                                        <input type="date" name="due_date" value="{{ active_task.due_date.strftime('%Y-%m-%d') if active_task.due_date else '' }}">
+                                                    </div>
+
+                                                    <div class="form-group">
+                                                        <label>Status</label>
+                                                        <select name="status">
+                                                            <option value="open" {% if active_task.status == 'open' %}selected{% endif %}>Open</option>
+                                                            <option value="in_progress" {% if active_task.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                                                            <option value="submitted" {% if active_task.status == 'submitted' %}selected{% endif %}>Submitted</option>
+                                                            <option value="verified" {% if active_task.status == 'verified' %}selected{% endif %}>Verify Complete</option>
+                                                            <option value="cancelled" {% if active_task.status == 'cancelled' %}selected{% endif %}>Cancel</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="form-group review-inline-full">
+                                                        <label>Notes</label>
+                                                        <textarea name="notes" rows="3" placeholder="Optional notes">{{ active_task.notes or '' }}</textarea>
+                                                    </div>
+                                                </div>
+
+                                                <div class="review-inline-actions">
+                                                    <button type="submit" name="submit_action" value="save" class="btn btn-secondary btn-sm">Save</button>
+                                                    <button type="submit" name="submit_action" value="unassign" class="btn btn-secondary btn-sm">Unassign</button>
+                                                </div>
+                                            </form>
+                                        </details>
+                                        {% endif %}
+
                                         {% if user.role == "mit" and active_task.status in ["open", "in_progress"] %}
                                         <form method="POST" action="{{ url_for('mit_sts.submit_task_for_verification', task_id=active_task.id) }}">
                                             <button type="submit" class="btn btn-primary btn-sm review-btn-primary">Submit</button>
@@ -222,6 +272,13 @@
                                             <button type="submit" class="btn btn-secondary btn-sm review-btn-secondary">Send Back</button>
                                         </form>
                                         {% endif %}
+                                    {% elif can_edit and progress %}
+                                        <form method="POST" action="{{ url_for('mit_sts.quick_add_task', task_id=progress.id) }}">
+                                            <input type="hidden" name="title" value="{{ item.item_name }}">
+                                            <input type="hidden" name="priority" value="medium">
+                                            <input type="hidden" name="return_anchor" value="item-{{ item.id }}">
+                                            <button type="submit" class="btn btn-primary btn-sm review-btn-primary">Assign Task</button>
+                                        </form>
                                     {% endif %}
 
                                     {% if not can_edit and not active_task %}
