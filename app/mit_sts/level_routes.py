@@ -1,4 +1,6 @@
 from .routes_shared import *
+from app.models import MITBinderTemplate, MITBinderSubmission
+
 
 @mit_sts_bp.route("/mits/<int:mit_id>/level/<int:level_number>")
 @login_required
@@ -31,7 +33,26 @@ def view_level(mit_id, level_number):
     all_linked_task_map = get_all_linked_task_map(profile.id)
 
     level_progress = calculate_level_progress(profile.id, level_number)
-    is_complete = level_progress == 100 and len(templates) > 0
+
+    binder_templates = MITBinderTemplate.query.filter_by(
+        level_number=level_number,
+        is_active=True
+    ).all()
+
+    binder_required = len(binder_templates) > 0
+
+    binder_template_ids = [template.id for template in binder_templates]
+    binder_submission_count = 0
+
+    if binder_template_ids:
+        binder_submission_count = MITBinderSubmission.query.filter(
+            MITBinderSubmission.mit_profile_id == profile.id,
+            MITBinderSubmission.template_id.in_(binder_template_ids)
+        ).count()
+
+    binder_completed = (not binder_required) or (binder_submission_count > 0)
+
+    is_complete = level_progress == 100 and len(templates) > 0 and binder_completed
 
     return render_template(
         "mit_sts/level_detail.html",
@@ -43,11 +64,16 @@ def view_level(mit_id, level_number):
         all_linked_task_map=all_linked_task_map,
         level_progress=level_progress,
         is_complete=is_complete,
+        binder_required=binder_required,
+        binder_completed=binder_completed,
+        binder_submission_count=binder_submission_count,
+        binder_template_count=len(binder_templates),
         task_display_status=task_display_status,
         user=current_user,
         can_edit=is_coach(),
         can_manage_templates=is_coach(),
     )
+
 
 @mit_sts_bp.route("/progress/<int:progress_id>/status", methods=["POST"])
 @login_required

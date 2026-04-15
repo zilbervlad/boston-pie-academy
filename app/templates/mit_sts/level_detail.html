@@ -15,11 +15,14 @@
     <div class="track-actions">
         <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Back to MIT Profile</a>
         <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_tasks', mit_id=mit.id) }}">Open Task Board</a>
+        <a class="btn btn-primary" href="{{ url_for('mit_sts.view_binder', mit_id=mit.id, level=level_number) }}">Open Binder</a>
     </div>
 </div>
 
 {% if is_complete %}
     {% set message = "Level " ~ level_number ~ " is complete for " ~ mit.mit_user.name ~ ". Review readiness and next-step timing." %}
+{% elif binder_required and not binder_completed and level_progress == 100 %}
+    {% set message = mit.mit_user.name ~ " has finished the STS items for Level " ~ level_number ~ ", but the binder is still required before this level counts as complete." %}
 {% elif active_task_map %}
     {% set message = "Level " ~ level_number ~ " has active linked tasks. Coach the open work, then verify the finished items." %}
 {% elif level_progress >= 80 %}
@@ -88,6 +91,59 @@
         </div>
     </div>
 </div>
+
+{% if binder_required %}
+<div class="card" style="margin-bottom: 18px; border-left: 4px solid {% if binder_completed %}#16a34a{% else %}#f59e0b{% endif %};">
+    <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+        <div>
+            <h3 style="margin-bottom: 4px;">Binder Requirement</h3>
+            <p style="margin: 0;">
+                {% if binder_completed %}
+                    Binder work has been started for this level.
+                {% else %}
+                    This level requires binder completion before the level can count as complete.
+                {% endif %}
+            </p>
+        </div>
+        <div class="level-summary-pill-wrap">
+            {% if binder_completed %}
+                <span class="pill pill-success">Binder Started</span>
+            {% else %}
+                <span class="pill pill-warning">Binder Required</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="level-summary-grid">
+        <div class="level-summary-stat">
+            <div class="stat-label">Binder Pages</div>
+            <div class="level-summary-value">{{ binder_template_count }}</div>
+        </div>
+
+        <div class="level-summary-stat">
+            <div class="stat-label">Binder Submissions</div>
+            <div class="level-summary-value">{{ binder_submission_count }}</div>
+        </div>
+
+        <div class="level-summary-stat">
+            <div class="stat-label">Binder Status</div>
+            <div class="level-summary-pill-wrap">
+                {% if binder_completed %}
+                    <span class="pill pill-success">Satisfied</span>
+                {% else %}
+                    <span class="pill pill-warning">Still Needed</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 16px;">
+        <a class="btn btn-primary" href="{{ url_for('mit_sts.view_binder', mit_id=mit.id, level=level_number) }}">
+            Open Level {{ level_number }} Binder
+        </a>
+    </div>
+</div>
+{% endif %}
 
 <div class="card level-items-card">
     <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">

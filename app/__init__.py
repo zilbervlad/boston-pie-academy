@@ -5,6 +5,7 @@ from app.extensions import db, login_manager
 
 from app.auth.routes import auth_bp
 from app.mit_sts.routes import mit_sts_bp
+from app.mit_sts import binder_routes  # noqa: F401
 
 
 def create_app():

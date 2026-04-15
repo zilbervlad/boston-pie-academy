@@ -13,7 +13,6 @@
     </div>
 
     <div class="track-actions">
-        <a class="btn btn-primary" href="{{ url_for('mit_sts.new_task', mit_id=mit.id) }}">+ Assign Task</a>
         <a class="btn btn-secondary" href="{{ url_for('mit_sts.view_mit', mit_id=mit.id) }}">Back to MIT Profile</a>
     </div>
 </div>
@@ -39,7 +38,7 @@
 {% elif open_count > 0 %}
     {% set message = mit.mit_user.name ~ " has " ~ open_count ~ " active task" ~ ("s" if open_count != 1 else "") ~ " in progress." %}
 {% else %}
-    {% set message = "No active tasks right now. Assign the next high-value task." %}
+    {% set message = "No active tasks right now. Add the next task from the MIT's level page." %}
 {% endif %}
 {% include "partials/doughy.html" %}
 
@@ -136,7 +135,7 @@
                     <td style="text-align:center;">
                         <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
                             {% if current_user.id == mit.user_id and task.status in ["open", "in_progress"] or display_status == "overdue" %}
-                            <form method="POST" action="{{ url_for('mit_sts.submit_task_for_review', task_id=task.id) }}" style="margin:0;">
+                            <form method="POST" action="{{ url_for('mit_sts.submit_task_for_verification', task_id=task.id) }}" style="margin:0;">
                                 <button type="submit" class="btn btn-secondary btn-sm">Submit</button>
                             </form>
                             {% endif %}
