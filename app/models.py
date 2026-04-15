@@ -17,35 +17,6 @@ class User(UserMixin, db.Model):
     is_active_user = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    progress_records = db.relationship(
-        "LessonProgress",
-        backref="user",
-        cascade="all, delete-orphan",
-        lazy=True
-    )
-
-    assignments = db.relationship(
-        "TrackAssignment",
-        foreign_keys="TrackAssignment.user_id",
-        backref="user",
-        cascade="all, delete-orphan",
-        lazy=True
-    )
-
-    assigned_tracks_created = db.relationship(
-        "TrackAssignment",
-        foreign_keys="TrackAssignment.assigned_by_user_id",
-        backref="assigned_by_user",
-        lazy=True
-    )
-
-    quiz_attempts = db.relationship(
-        "QuizAttempt",
-        backref="user",
-        cascade="all, delete-orphan",
-        lazy=True
-    )
-
     mit_profiles = db.relationship(
         "MITProfile",
         foreign_keys="MITProfile.user_id",
@@ -95,6 +66,20 @@ class User(UserMixin, db.Model):
         lazy=True
     )
 
+    binder_submissions_approved = db.relationship(
+        "MITBinderSubmission",
+        foreign_keys="MITBinderSubmission.approved_by_user_id",
+        backref="approved_by_user",
+        lazy=True
+    )
+
+    binder_sheet_approvals = db.relationship(
+        "MITBinderSubmission",
+        foreign_keys="MITBinderSubmission.sheet_approved_by_user_id",
+        backref="sheet_approved_by_user",
+        lazy=True
+    )
+
     def set_password(self, password: str):
         self.password_hash = generate_password_hash(password)
 
@@ -124,241 +109,6 @@ class User(UserMixin, db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-
-class TrainingTrack(db.Model):
-    __tablename__ = "training_tracks"
-
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    slug = db.Column(db.String(200), unique=True, nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    audience_role = db.Column(db.String(50), nullable=True)
-    level_label = db.Column(db.String(100), nullable=True)
-    is_active = db.Column(db.Boolean, default=True)
-    sort_order = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    modules = db.relationship(
-        "TrainingModule",
-        backref="track",
-        cascade="all, delete-orphan",
-        lazy=True,
-        order_by="TrainingModule.sort_order.asc(), TrainingModule.id.asc()",
-    )
-
-    assignments = db.relationship(
-        "TrackAssignment",
-        backref="track",
-        cascade="all, delete-orphan",
-        lazy=True
-    )
-
-    def __repr__(self):
-        return f"<TrainingTrack {self.title}>"
-
-
-class TrainingModule(db.Model):
-    __tablename__ = "training_modules"
-
-    id = db.Column(db.Integer, primary_key=True)
-    track_id = db.Column(db.Integer, db.ForeignKey("training_tracks.id"), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text, nullable=True)
-    sort_order = db.Column(db.Integer, default=0)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    lessons = db.relationship(
-        "Lesson",
-        backref="module",
-        cascade="all, delete-orphan",
-        lazy=True,
-        order_by="Lesson.sort_order.asc(), Lesson.id.asc()",
-    )
-
-    def __repr__(self):
-        return f"<TrainingModule {self.title}>"
-
-
-class Lesson(db.Model):
-    __tablename__ = "lessons"
-
-    id = db.Column(db.Integer, primary_key=True)
-    module_id = db.Column(db.Integer, db.ForeignKey("training_modules.id"), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    slug = db.Column(db.String(200), nullable=False)
-    lesson_type = db.Column(db.String(50), default="text")
-    summary = db.Column(db.Text, nullable=True)
-    content = db.Column(db.Text, nullable=True)
-    video_url = db.Column(db.String(500), nullable=True)
-    passing_score = db.Column(db.Integer, default=80)
-    requires_quiz = db.Column(db.Boolean, default=False)
-    requires_signoff = db.Column(db.Boolean, default=False)
-    signoff_role = db.Column(db.String(50), nullable=True)
-    estimated_minutes = db.Column(db.Integer, default=5)
-    status = db.Column(db.String(20), default="draft")
-    sort_order = db.Column(db.Integer, default=0)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    progress_records = db.relationship(
-        "LessonProgress",
-        backref="lesson",
-        cascade="all, delete-orphan",
-        lazy=True
-    )
-
-    quiz = db.relationship(
-        "Quiz",
-        backref="lesson",
-        uselist=False,
-        cascade="all, delete-orphan",
-        lazy=True
-    )
-
-    def __repr__(self):
-        return f"<Lesson {self.title}>"
-
-
-class LessonProgress(db.Model):
-    __tablename__ = "lesson_progress"
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    lesson_id = db.Column(db.Integer, db.ForeignKey("lessons.id"), nullable=False)
-    status = db.Column(db.String(20), nullable=False, default="not_started")
-    started_at = db.Column(db.DateTime, nullable=True)
-    completed_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint("user_id", "lesson_id", name="uq_user_lesson_progress"),
-    )
-
-    def __repr__(self):
-        return f"<LessonProgress user={self.user_id} lesson={self.lesson_id} status={self.status}>"
-
-
-class TrackAssignment(db.Model):
-    __tablename__ = "track_assignments"
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    track_id = db.Column(db.Integer, db.ForeignKey("training_tracks.id"), nullable=False)
-    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
-    assigned_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
-
-    __table_args__ = (
-        db.UniqueConstraint("user_id", "track_id", name="uq_user_track_assignment"),
-    )
-
-    def __repr__(self):
-        return f"<TrackAssignment user={self.user_id} track={self.track_id}>"
-
-
-class Quiz(db.Model):
-    __tablename__ = "quizzes"
-
-    id = db.Column(db.Integer, primary_key=True)
-    lesson_id = db.Column(db.Integer, db.ForeignKey("lessons.id"), nullable=False, unique=True)
-    title = db.Column(db.String(200), nullable=False)
-    passing_score = db.Column(db.Integer, default=80)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    questions = db.relationship(
-        "QuizQuestion",
-        backref="quiz",
-        cascade="all, delete-orphan",
-        lazy=True,
-        order_by="QuizQuestion.sort_order.asc(), QuizQuestion.id.asc()",
-    )
-
-    attempts = db.relationship(
-        "QuizAttempt",
-        backref="quiz",
-        cascade="all, delete-orphan",
-        lazy=True
-    )
-
-    def __repr__(self):
-        return f"<Quiz {self.title}>"
-
-
-class QuizQuestion(db.Model):
-    __tablename__ = "quiz_questions"
-
-    id = db.Column(db.Integer, primary_key=True)
-    quiz_id = db.Column(db.Integer, db.ForeignKey("quizzes.id"), nullable=False)
-    prompt = db.Column(db.Text, nullable=False)
-    sort_order = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    choices = db.relationship(
-        "QuizChoice",
-        backref="question",
-        cascade="all, delete-orphan",
-        lazy=True,
-        order_by="QuizChoice.sort_order.asc(), QuizChoice.id.asc()",
-    )
-
-    def __repr__(self):
-        return f"<QuizQuestion {self.id}>"
-
-
-class QuizChoice(db.Model):
-    __tablename__ = "quiz_choices"
-
-    id = db.Column(db.Integer, primary_key=True)
-    question_id = db.Column(db.Integer, db.ForeignKey("quiz_questions.id"), nullable=False)
-    choice_text = db.Column(db.Text, nullable=False)
-    is_correct = db.Column(db.Boolean, default=False)
-    sort_order = db.Column(db.Integer, default=0)
-
-    def __repr__(self):
-        return f"<QuizChoice {self.id}>"
-
-
-class QuizAttempt(db.Model):
-    __tablename__ = "quiz_attempts"
-
-    id = db.Column(db.Integer, primary_key=True)
-    quiz_id = db.Column(db.Integer, db.ForeignKey("quizzes.id"), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    score = db.Column(db.Integer, default=0)
-    passed = db.Column(db.Boolean, default=False)
-    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    answers = db.relationship(
-        "QuizAttemptAnswer",
-        backref="attempt",
-        cascade="all, delete-orphan",
-        lazy=True
-    )
-
-    def __repr__(self):
-        return f"<QuizAttempt quiz={self.quiz_id} user={self.user_id} score={self.score}>"
-
-
-class QuizAttemptAnswer(db.Model):
-    __tablename__ = "quiz_attempt_answers"
-
-    id = db.Column(db.Integer, primary_key=True)
-    attempt_id = db.Column(db.Integer, db.ForeignKey("quiz_attempts.id"), nullable=False)
-    question_id = db.Column(db.Integer, db.ForeignKey("quiz_questions.id"), nullable=False)
-    selected_choice_id = db.Column(db.Integer, db.ForeignKey("quiz_choices.id"), nullable=True)
-    is_correct = db.Column(db.Boolean, default=False)
-
-    question = db.relationship("QuizQuestion", foreign_keys=[question_id])
-    selected_choice = db.relationship("QuizChoice", foreign_keys=[selected_choice_id])
-
-    def __repr__(self):
-        return f"<QuizAttemptAnswer attempt={self.attempt_id} question={self.question_id}>"
 
 
 # --------------------------------------------------
@@ -418,6 +168,13 @@ class MITProfile(db.Model):
         cascade="all, delete-orphan",
         lazy=True,
         order_by="MITTask.created_at.desc()"
+    )
+
+    binder_submissions = db.relationship(
+        "MITBinderSubmission",
+        backref="mit_profile",
+        cascade="all, delete-orphan",
+        lazy=True
     )
 
     def __repr__(self):
@@ -594,3 +351,93 @@ class MITTask(db.Model):
 
     def __repr__(self):
         return f"<MITTask mit={self.mit_profile_id} title={self.title}>"
+
+
+# --------------------------------------------------
+# MIT BINDER MODELS
+# --------------------------------------------------
+
+class MITBinderTemplate(db.Model):
+    __tablename__ = "mit_binder_templates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    level_number = db.Column(db.Integer, nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    template_type = db.Column(db.String(50), nullable=False)
+    instructions = db.Column(db.Text, nullable=True)
+    sort_order = db.Column(db.Integer, default=0)
+    is_active = db.Column(db.Boolean, default=True)
+
+    fields = db.relationship(
+        "MITBinderField",
+        backref="template",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="MITBinderField.sort_order.asc(), MITBinderField.id.asc()"
+    )
+
+    submissions = db.relationship(
+        "MITBinderSubmission",
+        backref="template",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    def __repr__(self):
+        return f"<MITBinderTemplate level={self.level_number} title={self.title}>"
+
+
+class MITBinderField(db.Model):
+    __tablename__ = "mit_binder_fields"
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(db.Integer, db.ForeignKey("mit_binder_templates.id"), nullable=False)
+    label = db.Column(db.String(255), nullable=False)
+    field_type = db.Column(db.String(50), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+
+    entries = db.relationship(
+        "MITBinderEntry",
+        backref="field",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    def __repr__(self):
+        return f"<MITBinderField template={self.template_id} label={self.label}>"
+
+
+class MITBinderSubmission(db.Model):
+    __tablename__ = "mit_binder_submissions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    mit_profile_id = db.Column(db.Integer, db.ForeignKey("mit_profiles.id"), nullable=False)
+    template_id = db.Column(db.Integer, db.ForeignKey("mit_binder_templates.id"), nullable=False)
+    status = db.Column(db.String(20), default="in_progress")
+    approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sheet_approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    sheet_approved_at = db.Column(db.DateTime, nullable=True)
+
+    entries = db.relationship(
+        "MITBinderEntry",
+        backref="submission",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    def __repr__(self):
+        return f"<MITBinderSubmission mit={self.mit_profile_id} template={self.template_id}>"
+
+
+class MITBinderEntry(db.Model):
+    __tablename__ = "mit_binder_entries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    submission_id = db.Column(db.Integer, db.ForeignKey("mit_binder_submissions.id"), nullable=False)
+    field_id = db.Column(db.Integer, db.ForeignKey("mit_binder_fields.id"), nullable=False)
+    row_index = db.Column(db.Integer, default=0)
+    value = db.Column(db.Text, nullable=True)
+
+    def __repr__(self):
+        return f"<MITBinderEntry submission={self.submission_id} field={self.field_id} row={self.row_index}>"

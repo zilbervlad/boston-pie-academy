@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Binder Template{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MIT STS</p>
+        <h2>Edit Binder Template</h2>
+        <p class="subtle">Update title, instructions, type, order, active status, and fields.</p>
+    </div>
+
+    <div class="track-actions">
+        <a href="{{ url_for('mit_sts.binder_template_admin') }}" class="btn btn-secondary">Back to Binder Templates</a>
+        <a href="{{ url_for('mit_sts.view_binder', mit_id=1, level=template.level_number) }}" class="btn btn-secondary">Preview Level {{ template.level_number }}</a>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <h3>{{ template.title }}</h3>
+    </div>
+
+    <div class="card-body">
+        <form method="POST">
+            <div class="form-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" name="title" value="{{ template.title }}">
+                </div>
+
+                <div class="form-group">
+                    <label>Template Type</label>
+                    <select name="template_type">
+                        <option value="log" {% if template.template_type == "log" %}selected{% endif %}>Log</option>
+                        <option value="worksheet" {% if template.template_type == "worksheet" %}selected{% endif %}>Worksheet</option>
+                        <option value="checklist" {% if template.template_type == "checklist" %}selected{% endif %}>Checklist</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Sort Order</label>
+                    <input type="number" name="sort_order" value="{{ template.sort_order }}">
+                </div>
+
+                <div class="form-group" style="display:flex; align-items:flex-end;">
+                    <label style="display:flex; gap:8px; align-items:center; margin:0;">
+                        <input type="checkbox" name="is_active" {% if template.is_active %}checked{% endif %}>
+                        Active
+                    </label>
+                </div>
+
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>Instructions</label>
+                    <textarea name="instructions" rows="16" style="width:100%;">{{ template.instructions or '' }}</textarea>
+                </div>
+            </div>
+
+            <div style="margin-top: 18px;">
+                <button type="submit" class="btn btn-primary">Save Template</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <h3>Current Fields</h3>
+    </div>
+
+    <div class="card-body">
+        {% if fields %}
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="min-width: 260px;">Label</th>
+                            <th style="min-width: 180px;">Type</th>
+                            <th style="min-width: 120px;">Sort Order</th>
+                            <th style="min-width: 260px; text-align:center;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for field in fields %}
+                            <tr>
+                                <td colspan="4" style="padding: 14px 12px;">
+                                    <form method="POST" action="{{ url_for('mit_sts.update_binder_field', field_id=field.id) }}">
+                                        <div style="display:grid; grid-template-columns: 2fr 1fr 120px auto; gap: 12px; align-items:end;">
+                                            <div class="form-group" style="margin:0;">
+                                                <label>Label</label>
+                                                <input type="text" name="label" value="{{ field.label }}">
+                                            </div>
+
+                                            <div class="form-group" style="margin:0;">
+                                                <label>Type</label>
+                                                <select name="field_type">
+                                                    <option value="text" {% if field.field_type == "text" %}selected{% endif %}>Text</option>
+                                                    <option value="textarea" {% if field.field_type == "textarea" %}selected{% endif %}>Textarea</option>
+                                                    <option value="number" {% if field.field_type == "number" %}selected{% endif %}>Number</option>
+                                                    <option value="checkbox" {% if field.field_type == "checkbox" %}selected{% endif %}>Checkbox</option>
+                                                    <option value="date" {% if field.field_type == "date" %}selected{% endif %}>Date</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="form-group" style="margin:0;">
+                                                <label>Sort</label>
+                                                <input type="number" name="sort_order" value="{{ field.sort_order }}">
+                                            </div>
+
+                                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                                <button type="submit" class="btn btn-primary btn-sm">Save Field</button>
+                                            </div>
+                                        </div>
+                                    </form>
+
+                                    <div style="margin-top: 10px;">
+                                        <form method="POST" action="{{ url_for('mit_sts.delete_binder_field', field_id=field.id) }}" onsubmit="return confirm('Delete this field? This only works if no saved data exists for it.');">
+                                            <button type="submit" class="btn btn-secondary btn-sm">Delete Field</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="subtle" style="margin: 0;">No fields added yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Add New Field</h3>
+    </div>
+
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('mit_sts.add_binder_field', template_id=template.id) }}">
+            <div style="display:grid; grid-template-columns: 2fr 1fr 120px auto; gap: 12px; align-items:end;">
+                <div class="form-group" style="margin:0;">
+                    <label>Label</label>
+                    <input type="text" name="label" placeholder="Field label">
+                </div>
+
+                <div class="form-group" style="margin:0;">
+                    <label>Type</label>
+                    <select name="field_type">
+                        <option value="text">Text</option>
+                        <option value="textarea">Textarea</option>
+                        <option value="number">Number</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="date">Date</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin:0;">
+                    <label>Sort</label>
+                    <input type="number" name="sort_order" placeholder="Auto">
+                </div>
+
+                <div>
+                    <button type="submit" class="btn btn-primary">Add Field</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

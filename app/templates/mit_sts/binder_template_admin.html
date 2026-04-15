@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Binder Templates{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MIT STS</p>
+        <h2>Binder Templates</h2>
+        <p class="subtle">Manage binder sheet titles, instructions, types, and visibility.</p>
+    </div>
+
+    <a href="{{ url_for('mit_sts.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+{% if grouped_templates %}
+    {% for level, templates in grouped_templates.items() %}
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">
+                <h3>Level {{ level }}</h3>
+            </div>
+
+            <div class="card-body" style="padding-top: 0;">
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Sort</th>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Instructions</th>
+                                <th style="text-align:center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for template in templates %}
+                                <tr>
+                                    <td>{{ template.sort_order }}</td>
+                                    <td>{{ template.title }}</td>
+                                    <td>{{ template.template_type|replace('_', ' ')|title }}</td>
+                                    <td>
+                                        {% if template.is_active %}
+                                            <span class="pill pill-success">Active</span>
+                                        {% else %}
+                                            <span class="pill pill-muted">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if template.instructions %}
+                                            {{ template.instructions[:120] }}{% if template.instructions|length > 120 %}...{% endif %}
+                                        {% else %}
+                                            <span class="subtle">No instructions</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="text-align:center;">
+                                        <a class="btn btn-primary btn-sm" href="{{ url_for('mit_sts.edit_binder_template', template_id=template.id) }}">Edit</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="card">
+        <div class="card-body">
+            <p class="subtle" style="margin: 0;">No binder templates found yet.</p>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

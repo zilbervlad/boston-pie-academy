@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Level {{ level }} Binder{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <p class="eyebrow">MIT STS</p>
+        <h2>Level {{ level }} Binder</h2>
+        <p class="subtle">
+            {{ mit.mit_user.name if mit.mit_user else "MIT" }} · Store {{ mit.store_number or "—" }}
+        </p>
+    </div>
+
+    <div class="track-actions">
+        <a href="{{ url_for('mit_sts.view_level', mit_id=mit.id, level_number=level) }}" class="btn btn-secondary">
+            Back to Level
+        </a>
+        {% if user.role in ["admin", "coach", "training_director"] %}
+            <a href="{{ url_for('mit_sts.binder_template_admin') }}" class="btn btn-primary">
+                Manage Templates
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if templates %}
+    {% for template in templates %}
+        {% set submission = submissions.get(template.id) %}
+        {% set ns = namespace(rows={}) %}
+
+        {% if submission %}
+            {% for entry in submission.entries %}
+                {% if entry.row_index not in ns.rows %}
+                    {% set _ = ns.rows.update({entry.row_index: {}}) %}
+                {% endif %}
+                {% set _ = ns.rows[entry.row_index].update({entry.field_id: entry.value}) %}
+            {% endfor %}
+        {% endif %}
+
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+                <div>
+                    <h3 style="margin-bottom: 4px;">{{ template.title }}</h3>
+                    <p class="subtle" style="margin: 0;">Type: {{ template.template_type|replace('_', ' ')|title }}</p>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    {% if submission and ns.rows %}
+                        <div class="level-summary-pill-wrap">
+                            <span class="pill pill-info">{{ ns.rows|length }} Row{{ '' if ns.rows|length == 1 else 's' }}</span>
+                        </div>
+                    {% endif %}
+
+                    {% if user.role in ["admin", "coach", "training_director"] %}
+                        <a href="{{ url_for('mit_sts.edit_binder_template', template_id=template.id) }}" class="btn btn-secondary btn-sm">
+                            Edit Sheet
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card-body">
+                {% if template.instructions %}
+                    <div class="card" style="margin-bottom: 18px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                        <div class="card-body" style="padding: 16px 18px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom: 10px;">
+                                <div style="font-weight: 700;">Coaching Guide</div>
+                                {% if user.role in ["admin", "coach", "training_director"] %}
+                                    <a href="{{ url_for('mit_sts.edit_binder_template', template_id=template.id) }}" class="btn btn-secondary btn-sm">
+                                        Edit Instructions
+                                    </a>
+                                {% endif %}
+                            </div>
+                            <div style="white-space: pre-line; color: #475569; line-height: 1.55;">{{ template.instructions }}</div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if submission and ns.rows %}
+                    <div style="overflow-x: auto; margin-bottom: 18px;">
+                        <table class="table" style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    {% for field in template.fields %}
+                                        <th style="text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb;">
+                                            {{ field.label }}
+                                        </th>
+                                    {% endfor %}
+                                    <th style="text-align: center; padding: 10px; border-bottom: 1px solid #e5e7eb; width: 120px;">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row_index, row_data in ns.rows|dictsort %}
+                                    <tr>
+                                        {% for field in template.fields %}
+                                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top;">
+                                                {{ row_data.get(field.id, "—") }}
+                                            </td>
+                                        {% endfor %}
+                                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: center; vertical-align: top;">
+                                            <form method="POST" action="{{ url_for('mit_sts.delete_binder_row', submission_id=submission.id, row_index=row_index) }}" onsubmit="return confirm('Delete this row?');">
+                                                <button type="submit" class="btn btn-secondary btn-sm">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="empty-state" style="margin-bottom: 18px;">
+                        <p class="subtle" style="margin: 0;">No rows added yet.</p>
+                    </div>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('mit_sts.add_binder_row', template_id=template.id, mit_id=mit.id) }}">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                        {% for field in template.fields %}
+                            <div>
+                                <label style="display: block; margin-bottom: 6px; font-weight: 600;">
+                                    {{ field.label }}
+                                </label>
+
+                                {% if field.field_type == "textarea" %}
+                                    <textarea
+                                        name="field_{{ field.id }}"
+                                        rows="3"
+                                        style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px;"
+                                    ></textarea>
+                                {% elif field.field_type == "date" %}
+                                    <input
+                                        type="date"
+                                        name="field_{{ field.id }}"
+                                        style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px;"
+                                    >
+                                {% elif field.field_type == "number" %}
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        name="field_{{ field.id }}"
+                                        style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px;"
+                                    >
+                                {% elif field.field_type == "checkbox" %}
+                                    <select
+                                        name="field_{{ field.id }}"
+                                        style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px;"
+                                    >
+                                        <option value="">Select</option>
+                                        <option value="Yes">Yes</option>
+                                        <option value="No">No</option>
+                                    </select>
+                                {% else %}
+                                    <input
+                                        type="text"
+                                        name="field_{{ field.id }}"
+                                        style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 10px;"
+                                    >
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div style="margin-top: 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <button type="submit" class="btn btn-primary">Add Row</button>
+                        <span class="subtle">Fill out the sheet using the coaching guide above.</span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="card">
+        <div class="card-body">
+            <p class="subtle" style="margin: 0;">No binder pages have been set up for this level yet.</p>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
