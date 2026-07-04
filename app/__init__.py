@@ -8,11 +8,13 @@ from app.mit_sts.routes import mit_sts_bp
 from app.mit_sts import binder_routes  # noqa: F401
 
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "dev-secret-key"
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///academy.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    if test_config:
+        app.config.update(test_config)
 
     db.init_app(app)
     login_manager.init_app(app)
